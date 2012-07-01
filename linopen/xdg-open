@@ -44,6 +44,10 @@ needs_fork() {
 launch() {
    ext=${1##*.}; path=${1%/*}; program="$2"
 
+   # is directory?
+   [[ -d "$1" ]] &&
+      program="$(getconfig | grep "^directory:" | cut -d : -f 2)"
+
    # test against extension
    [ "$program" ] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
 
