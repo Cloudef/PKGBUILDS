@@ -1,0 +1,116 @@
+#!/bin/sh
+# replaces xdg-open
+# inspired by mimi: https://github.com/taylorchu/mimi
+
+_LINOPEN_CFGRC="$HOME/.linopenrc"
+_LINOPEN_CFGSYS="/etc/linopen.conf"
+
+# helpers
+err() { echo "$@"; exit 1; }
+usage() { echo "usage: $(basename $0) [file]"; }
+
+# pipe configuration
+getconfig() {
+   # '#' are comments in configuration :)
+   [[ -f "$_LINOPEN_CFGRC" ]]  && cat "$_LINOPEN_CFGRC"  | egrep -v "^(#|$)"
+   [[ -f "$_LINOPEN_CFGSYS" ]] && cat "$_LINOPEN_CFGSYS" | egrep -v "^(#|$)"
+}
+
+# get terminal emulator from configuration
+get_term() {
+   getconfig | grep -w "^\$terminal" | head -1 | cut -d = -f 2
+}
+
+# check, if program needs terminal
+# $1 = program
+needs_term() {
+   [ "$(getconfig | grep -w "^\$interm=$@")" ] &&
+      return 0 || return 1
+}
+
+# check, if we need fork for terminal program
+needs_fork() {
+   # is either ran from shell or from script
+   if [[ "$(ps -o stat= -p $PPID)" == *S* ]]; then
+      # + == not backgrounded
+      [[ "$(ps -o stat= -p $$)"    == *+* ]] &&
+         return 1 || return 0
+   fi
+}
+
+# launch file with correct program
+# $1 = filename
+# $2 = forced program
+launch() {
+   ext=${1##*.}; path=${1%/*}; program="$2"
+
+   # test against extension
+   [ "$program" ] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+
+   # test against whole mime type
+   [ "$program" ] || program="$(getconfig | \
+      grep "^$(file -b --mime-type "$1"):" | head -1 | cut -d : -f 2)"
+
+   # test against video/, text/ (first part of mime type)
+   [ "$program" ] || program="$(getconfig | \
+      grep "^$(file -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
+      head -1 | cut -d : -f 2)"
+
+   # test against default as last try
+   [ "$program" ] || program="$(getconfig | grep "^default:" | \
+      head -1 | cut -d : -f 2)"
+
+   if needs_term "$program"; then
+      if needs_fork; then
+         # open in new terminal
+         "$(get_term)" -e "$program" "$1" &
+      else
+         # open in current terminal
+         "$program" "$1"
+      fi
+   else
+      # open in background
+      "$program" "$1" &
+   fi
+   exit $?
+}
+
+# handle file
+handle() {
+   filename="$@"
+
+   if [[ ! -f "$filename" ]]; then
+      # test for directory first
+      # reasoning? we can have directory www.something.com
+      [[ -d "$filename" ]] && launch "$filename"
+
+      # test for url
+      [[ "$filename" == http://* ]]    && launch "$filename" "$BROWSER"
+      [[ "$filename" == https://* ]]   && launch "$filename" "$BROWSER"
+      [[ "$filename" == www.* ]]       && launch "$filename" "$BROWSER"
+
+      # it might be a file:// protocol
+      filename=${filename##file://}
+      [[ -d "$filename" ]] || [[ -f "$filename" ]] ||
+         err "file does not exist: $filename"
+      launch "$filename"
+   fi
+
+   # file exists, just launch it
+   launch "$filename"
+}
+
+main() {
+   [ "$@" ] || { usage; exit 1; }
+   [ "$(getconfig)" ] ||
+      err "no configuration exists: /etc/linopen.conf || ~/.linopenrc"
+   [ "$(getconfig | grep "^default:")" ] ||
+      err "rule must exist in configuration: 'default:'"
+
+   # handle arguments
+   while [ "$1" ]; do
+      handle "$1"
+      shift || break
+   done
+}
+main "$@"
