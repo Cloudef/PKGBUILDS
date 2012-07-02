@@ -1,30 +1,43 @@
 #!/bin/sh
 # replaces xdg-open
-# inspired by mimi: https://github.com/taylorchu/mimi
+# inspired from mimi: https://github.com/taylorchu/mimi
 
 _LINOPEN_CFGRC="$HOME/.linopenrc"
 _LINOPEN_CFGSYS="/etc/linopen.conf"
+_LINOPEN_CFGARG=
 
 # helpers
 err() { echo "$@"; exit 1; }
-usage() { echo "usage: $(basename $0) [file]"; }
+usage() { echo "usage: $(basename $0) [-c <config>] [file]"; }
 
 # pipe configuration
 getconfig() {
    # '#' are comments in configuration :)
-   [[ -f "$_LINOPEN_CFGRC" ]]  && cat "$_LINOPEN_CFGRC"  | egrep -v "^(#|$)"
-   [[ -f "$_LINOPEN_CFGSYS" ]] && cat "$_LINOPEN_CFGSYS" | egrep -v "^(#|$)"
+   [[ -f "$_LINOPEN_CFGARG" ]] && { egrep -v "^(#|$)" "$_LINOPEN_CFGARG"; return; }
+   [[ -f "$_LINOPEN_CFGRC" ]]  && egrep -v "^(#|$)" "$_LINOPEN_CFGRC"
+   [[ -f "$_LINOPEN_CFGSYS" ]] && egrep -v "^(#|$)" "$_LINOPEN_CFGSYS"
+}
+
+# match regexp
+# $1 = filename
+match_regexp() {
+   getconfig | grep "^?" | while read cf; do
+      exp="$(echo "$cf" | sed "s/?'\(.*\)':.*/\1/")"
+      [[ "$(echo "$@" | grep "$exp")" ]] && {
+         echo "$cf" | sed "s/?'.*':\(.*\)/\1/"
+      }
+   done
 }
 
 # get terminal emulator from configuration
 get_term() {
-   getconfig | grep -w "^\$terminal" | head -1 | cut -d = -f 2
+   getconfig | grep -w "^terminal" | head -1 | cut -d = -f 2
 }
 
 # check, if program needs terminal
 # $1 = program
 needs_term() {
-   [ "$(getconfig | grep -w "^\$interm=$@")" ] &&
+   [[ "$(getconfig | grep -w "^interm=$@")" ]] &&
       return 0 || return 1
 }
 
@@ -42,28 +55,55 @@ needs_fork() {
 # $1 = filename
 # $2 = forced program
 launch() {
-   ext=${1##*.}; path=${1%/*}; program="$2"
+   local ext=${1##*.};
+   local path=${1%/*};
+   local program="$2"
 
    # is directory?
    [[ -d "$1" ]] &&
       program="$(getconfig | grep "^directory:" | cut -d : -f 2)"
 
+   # if not directory, and file doesn't exist
+   # try matching regexp
+   [[ ! "$program" ]] && [[ ! -f "$1" ]] &&
+      regexp="$(match_regexp "$1")"
+
+   # if file not found and no matching regexp
+   [[ ! -f "$1" ]] && [[ ! "$regexp" ]] && {
+      err "file does not exist: $1";
+   } || program="$regexp"
+
    # test against extension
-   [ "$program" ] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+   [[ "$program" ]] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
 
    # test against whole mime type
-   [ "$program" ] || program="$(getconfig | \
+   [[ "$program" ]] || program="$(getconfig | \
       grep "^$(file -b --mime-type "$1"):" | head -1 | cut -d : -f 2)"
 
    # test against video/, text/ (first part of mime type)
-   [ "$program" ] || program="$(getconfig | \
+   [[ "$program" ]] || program="$(getconfig | \
       grep "^$(file -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
       head -1 | cut -d : -f 2)"
 
    # test against default as last try
-   [ "$program" ] || program="$(getconfig | grep "^default:" | \
+   [[ "$program" ]] || program="$(getconfig | grep "^default:" | \
       head -1 | cut -d : -f 2)"
 
+   # check if program is enviroiment variable
+   [[ "$(echo "$program" | grep '^\$')" ]] && {
+      program="$(echo "$program" | sed 's/^\$//')"
+      echo "$program"
+      program="$(env | grep "$program" | head -1 | cut -d = -f 2)"
+      echo "$program"
+   }
+
+   # no program found
+   [[ "$program" ]] ||
+      err "could not find program for '$(basename $1)', check your configuration"
+
+   echo "$program"
+
+   # check if we need term or fork
    if needs_term "$program"; then
       if needs_fork; then
          # open in new terminal
@@ -80,39 +120,35 @@ launch() {
 }
 
 # handle file
+# $1 = filename
 handle() {
-   filename="$@"
-
-   if [[ ! -f "$filename" ]]; then
-      # test for directory first
-      # reasoning? we can have directory www.something.com
-      [[ -d "$filename" ]] && launch "$filename"
-
-      # test for url
-      [[ "$filename" == http://* ]]    && launch "$filename" "$BROWSER"
-      [[ "$filename" == https://* ]]   && launch "$filename" "$BROWSER"
-      [[ "$filename" == www.* ]]       && launch "$filename" "$BROWSER"
-
-      # it might be a file:// protocol
-      filename=${filename##file://}
-      [[ -d "$filename" ]] || [[ -f "$filename" ]] ||
-         err "file does not exist: $filename"
-      launch "$filename"
-   fi
-
-   # file exists, just launch it
+   local filename="$@"
+   [[ "$(echo $filename | grep "^file://")" ]] && {
+      filename="${filename##file://}"
+   }
    launch "$filename"
 }
 
 main() {
-   [ "$@" ] || { usage; exit 1; }
-   [ "$(getconfig)" ] ||
+   # print usage if no arguments
+   [[ "$@" ]] || { usage; exit 1; }
+
+   # check configuration argument
+   [[ "$1" == "-c" ]] && {
+      shift 1; _LINOPEN_CFGARG="$1";
+      [[ -f "$_LINOPEN_CFGARG" ]] ||
+         err "no configuration exists: $_LINOPEN_CFGARG"
+      shift 1
+   }
+
+   # check that everything is ok
+   [[ "$(getconfig)" ]] ||
       err "no configuration exists: /etc/linopen.conf || ~/.linopenrc"
-   [ "$(getconfig | grep "^default:")" ] ||
+   [[ "$(getconfig | grep "^default:")" ]] ||
       err "rule must exist in configuration: 'default:'"
 
    # handle arguments
-   while [ "$1" ]; do
+   while [[ "$1" ]]; do
       handle "$1"
       shift || break
    done
