@@ -85,6 +85,9 @@ launch() {
       grep "^$(file -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
       head -1 | cut -d : -f 2)"
 
+   # test against regexp
+   [[ "$program" ]] || program="$(match_regexp "$1")"
+
    # test against default as last try
    [[ "$program" ]] || program="$(getconfig | grep "^default:" | \
       head -1 | cut -d : -f 2)"
