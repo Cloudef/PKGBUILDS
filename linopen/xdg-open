@@ -23,7 +23,7 @@ getconfig() {
 match_regexp() {
    getconfig | grep "^?" | while read cf; do
       exp="$(echo "$cf" | sed "s/?'\(.*\)':.*/\1/")"
-      [[ "$(echo "$@" | grep "$exp")" ]] && {
+      [[ -n "$(echo "$@" | grep "$exp")" ]] && {
          echo "$cf" | sed "s/?'.*':\(.*\)/\1/"
       }
    done
@@ -37,7 +37,7 @@ get_term() {
 # check, if program needs terminal
 # $1 = program
 needs_term() {
-   [[ "$(getconfig | grep -w "^interm=$@")" ]] &&
+   [[ -n "$(getconfig | grep -w "^interm=$@")" ]] &&
       return 0 || return 1
 }
 
@@ -65,41 +65,41 @@ launch() {
 
    # if not directory, and file doesn't exist
    # try matching regexp
-   [[ ! "$program" ]] && [[ ! -f "$1" ]] &&
+   [[ ! -n "$program" ]] && [[ ! -f "$1" ]] &&
       regexp="$(match_regexp "$1")"
 
    # if file not found and no matching regexp
-   [[ ! -f "$1" ]] && [[ ! "$regexp" ]] && {
+   [[ ! -f "$1" ]] && [[ ! -n "$regexp" ]] && {
       err "file does not exist: $1";
    } || program="$regexp"
 
    # test against extension
-   [[ "$program" ]] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+   [[ -n "$program" ]] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
 
    # test against whole mime type
-   [[ "$program" ]] || program="$(getconfig | \
+   [[ -n "$program" ]] || program="$(getconfig | \
       grep "^$(file -b --mime-type "$1"):" | head -1 | cut -d : -f 2)"
 
    # test against video/, text/ (first part of mime type)
-   [[ "$program" ]] || program="$(getconfig | \
+   [[ -n "$program" ]] || program="$(getconfig | \
       grep "^$(file -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
       head -1 | cut -d : -f 2)"
 
    # test against regexp
-   [[ "$program" ]] || program="$(match_regexp "$1")"
+   [[ -n "$program" ]] || program="$(match_regexp "$1")"
 
    # test against default as last try
-   [[ "$program" ]] || program="$(getconfig | grep "^default:" | \
+   [[ -n "$program" ]] || program="$(getconfig | grep "^default:" | \
       head -1 | cut -d : -f 2)"
 
    # check if program is enviroiment variable
-   [[ "$(echo "$program" | grep '^\$')" ]] && {
+   [[ -n "$(echo "$program" | grep '^\$')" ]] && {
       program="$(echo "$program" | sed 's/^\$//')"
       program="$(env | grep "$program" | head -1 | cut -d = -f 2)"
    }
 
    # no program found
-   [[ "$program" ]] ||
+   [[ -n "$program" ]] ||
       err "could not find program for '$(basename $1)', check your configuration"
 
    # check if we need term or fork
@@ -122,7 +122,7 @@ launch() {
 # $1 = filename
 handle() {
    local filename="$@"
-   [[ "$(echo $filename | grep "^file://")" ]] && {
+   [[ -n "$(echo $filename | grep "^file://")" ]] && {
       filename="${filename##file://}"
    }
    launch "$filename"
@@ -130,7 +130,7 @@ handle() {
 
 main() {
    # print usage if no arguments
-   [[ "$@" ]] || { usage; exit 1; }
+   [[ -n "$@" ]] || { usage; exit 1; }
 
    # check configuration argument
    [[ "$1" == "-c" ]] && {
@@ -141,13 +141,13 @@ main() {
    }
 
    # check that everything is ok
-   [[ "$(getconfig)" ]] ||
+   [[ -n "$(getconfig)" ]] ||
       err "no configuration exists: /etc/linopen.conf || ~/.linopenrc"
-   [[ "$(getconfig | grep "^default:")" ]] ||
+   [[ -n "$(getconfig | grep "^default:")" ]] ||
       err "rule must exist in configuration: 'default:'"
 
    # handle arguments
-   while [[ "$1" ]]; do
+   while [[ -n "$1" ]]; do
       handle "$1"
       shift || break
    done
