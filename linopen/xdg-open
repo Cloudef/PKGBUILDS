@@ -92,16 +92,12 @@ launch() {
    # check if program is enviroiment variable
    [[ "$(echo "$program" | grep '^\$')" ]] && {
       program="$(echo "$program" | sed 's/^\$//')"
-      echo "$program"
       program="$(env | grep "$program" | head -1 | cut -d = -f 2)"
-      echo "$program"
    }
 
    # no program found
    [[ "$program" ]] ||
       err "could not find program for '$(basename $1)', check your configuration"
-
-   echo "$program"
 
    # check if we need term or fork
    if needs_term "$program"; then
