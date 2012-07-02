@@ -21,6 +21,6 @@ package() {
    install -m755 xdg-open "${pkgdir}/usr/bin/"
    install -m755 linopen.conf "${pkgdir}/etc/"
 }
-md5sums=('55566f227ee4cf3c0ae85f46141268d3'
-         '55566f227ee4cf3c0ae85f46141268d3'
+md5sums=('d0ccd675a15b2e207c1c199d711ccb4a'
+         'd0ccd675a15b2e207c1c199d711ccb4a'
          '2c9078f3ee82d619dc150bb44837d9e8')
