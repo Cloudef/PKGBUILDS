@@ -11,16 +11,15 @@ license=('WTFPL')
 provides=('xdg-utils')
 conflicts=('xdg-utils')
 backup=('etc/linopen.conf')
-source=('xdg-open' 'open' 'linopen.conf')
+source=('xdg-open' 'linopen.conf')
 
 package() {
    cd "$srcdir"
    mkdir -p "${pkgdir}/usr/bin"
    mkdir -p "${pkgdir}/etc"
-   install -m755 open "${pkgdir}/usr/bin/"
+   ln -s "/usr/bin/xdg-open" "$pkgdir/usr/bin/open"
    install -m755 xdg-open "${pkgdir}/usr/bin/"
    install -m755 linopen.conf "${pkgdir}/etc/"
 }
 md5sums=('f5487fc4c305a20124da7bb164e6b04d'
-         'f5487fc4c305a20124da7bb164e6b04d'
          '2c9078f3ee82d619dc150bb44837d9e8')
