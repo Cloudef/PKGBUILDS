@@ -19,4 +19,4 @@ package() {
    ln -s "/usr/bin/xdg-open" "$pkgdir/usr/bin/open"
 }
 md5sums=('054bf5782dac4799922060d9fc1d2d7d'
-         '2c9078f3ee82d619dc150bb44837d9e8')
+         '0bc9513b435371e13d33aa095706fa35')
