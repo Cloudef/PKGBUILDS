@@ -18,5 +18,5 @@ package() {
    install -Dm755 "$srcdir/linopen.conf" "${pkgdir}/etc/linopen.conf"
    ln -s "/usr/bin/xdg-open" "$pkgdir/usr/bin/open"
 }
-md5sums=('f5487fc4c305a20124da7bb164e6b04d'
+md5sums=('054bf5782dac4799922060d9fc1d2d7d'
          '2c9078f3ee82d619dc150bb44837d9e8')

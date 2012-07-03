@@ -55,8 +55,6 @@ needs_fork() {
 # $1 = filename
 # $2 = forced program
 launch() {
-   local ext=${1##*.};
-   local path=${1%/*};
    local program="$2"
 
    # is directory?
@@ -69,12 +67,15 @@ launch() {
       regexp="$(match_regexp "$1")"
 
    # if file not found and no matching regexp
-   [[ ! -f "$1" ]] && [[ ! -n "$regexp" ]] && {
+   [[ ! -f "$1" ]] && [[ ! -d "$1" ]] && [[ ! -n "$regexp" ]] && {
       err "file does not exist: $1";
    } || program="$regexp"
 
    # test against extension
-   [[ -n "$program" ]] || program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+   [[ -n "$program" ]] || {
+      local ext=${1##*.};
+      program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+   }
 
    # test against whole mime type
    [[ -n "$program" ]] || program="$(getconfig | \
