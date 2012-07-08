@@ -8,3 +8,9 @@ History is saved in XDG_USER_DATA/loliclip or $HOME/.local/loliclip
 By default it uses zlib compression.
 
 Also comes with bash script for dmenu access.
+
+
+Issues:
+   - Settin new selection from command line is slow (compared to xsel, xclip)
+   - Print the data from clipboard "as is" (get rid of isprint)
+   - Some clipboard owning issues which might be related to slowness of issue #1.
