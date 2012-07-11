@@ -974,10 +974,10 @@ static void handle_request(xcb_selection_request_event_t *e) {
 }
 
 /* hash char buffer */
-static unsigned int hashb(char *b) {
-   unsigned int hash = 0;
-   for (; *b; ++b) {
-      hash += *b;
+static unsigned int hashb(char *b, size_t len) {
+   unsigned int hash = 0; size_t i;
+   for (i = 0; i != len; ++i) {
+      hash += b[i];
       hash += (hash << 10);
       hash ^= (hash >> 6);
    }
@@ -1028,7 +1028,7 @@ static void handle_copy(clipdata *c) {
     * this is only neccessary to PRIMARY, so that the
     * history won't get bloated with non full selections. */
    if (c->sel == PRIMARY) {
-      if ((hash = hashb(buffer)) != ohash) {
+      if ((hash = hashb(buffer, len)) != ohash) {
          OUT("\4Start of PRIMARY copy");
          set_clipboard_data(c, buffer, len);
          ohash = hash; free(buffer); return;
@@ -1041,7 +1041,7 @@ static void handle_copy(clipdata *c) {
       }
    } else {
       OUT("\4Got data from some other clipboard");
-      if (c->hash == (hash = hashb(buffer))) {
+      if (c->hash == (hash = hashb(buffer, len))) {
          free(buffer); return;
       }
       c->hash = hash;
