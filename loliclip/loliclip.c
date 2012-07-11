@@ -69,7 +69,7 @@ typedef struct clipdata  {
    unsigned int sync;
    unsigned int maxclips;
    unsigned int flags;
-   unsigned int hash;
+   unsigned int hash, ohash;
    size_t size;
    void *data;
    char selected;
@@ -78,7 +78,7 @@ typedef struct clipdata  {
 
 /* helper macro */
 #define REGISTER_CLIPBOARD(clipboard_to_handle, clipboard_to_sync, maxclips, flags) \
-   { clipboard_to_handle, clipboard_to_sync, maxclips, flags, 0, 0, NULL, 0, XCB_NONE }
+   { clipboard_to_handle, clipboard_to_sync, maxclips, flags, 0, 0, 0, NULL, 0, XCB_NONE }
 
 /* clipboards to handle */
 #define NO_SYNC XNULL
@@ -115,6 +115,7 @@ REGISTER_ARG(arg_get);
 REGISTER_ARG(arg_list);
 REGISTER_ARG(arg_dmenu);
 REGISTER_ARG(arg_clear);
+REGISTER_ARG(arg_query);
 #undef REGISTER_ARG
 
 /* arguments are executed in order */
@@ -127,7 +128,8 @@ static cliparg clipargs[] = {
    { 0, 'g', "get",        0, arg_get,       NULL,                "\tGet clip by index or hash form history." },
    { 0, 'l', "list",       0, arg_list,      NULL,                "\tLists clips from history." },
    { 0, 'm', "dmenu",      0, arg_dmenu,     NULL,                "\tDmenu friendly listing." },
-   { 0, 'C', "clear",      0, arg_clear,     NULL,                "\tClears clipboard history." }
+   { 0, 'C', "clear",      0, arg_clear,     NULL,                "\tClears clipboard history." },
+   { 0, 'q', "query",      0, arg_query,     NULL,                "\tQuery if loliclip daemon is running." }
 };
 
 /* xcb connection */
@@ -335,13 +337,17 @@ static char* trim_whitespace(char *buffer, size_t len, size_t *nlen) {
 
 /* is data multiline? */
 static int isml(char *buffer, size_t len) {
-   size_t i;
-   for (i = 0; i != len; ++i)
-      if (i != len && buffer[i] == '\n') return 1;
+   size_t i; char ml = 0;
+   for (i = 0; i != len; ++i) {
+      if (ml && buffer[i] != '\n') return 1;
+      if (buffer[i] == '\n') ml = 1;
+   }
    return 0;
 }
 
-/* assign new clipboard data */
+/* assign new clipboard data
+ * return 1 == success
+ * return 0 == fail */
 static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
    char *s, *copy = NULL; size_t nlen;
 
@@ -359,7 +365,9 @@ static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
    }
 
    if (c->flags & CLIPBOARD_TRIM_TRAILING_NEWLINE) {
-      for (s = copy+len-1; *s && *s == '\n'; --s) *s = 0;
+      for (s = copy+len-1; *s && *s == '\n'; --s) {
+         --len; *s = 0;
+      }
       if (!*copy) goto fail;
    }
 
@@ -803,7 +811,8 @@ static int set_own(xcb_atom_t selection) {
 
 /* set clipboard ownership */
 static int set_clipboard_own(clipdata *c) {
-   char *path; int rindex = 1;
+   char *path; int rindex = 0;
+   if (c->owner == xcbw) return 1;
    if (set_own(atoms[c->sel])) {
       c->owner = xcbw;
       if (!c->data && (path = get_clipboard_database_path(c, 0))) {
@@ -949,7 +958,7 @@ static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
          sr = (xcb_selection_request_event_t*)ev;
          OUT("xcb: selection request");
          send_xsel(sr->requestor, sr->property, sr->selection,
-               sr->target, sr->time, len, buffer); break;
+               sr->target, sr->time, len, buffer);
       }
       free(ev);
    }
@@ -961,8 +970,10 @@ static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
 static void handle_clip(clipdata *c) {
    int sc;
    if (c->sync != NO_SYNC && c->sync != c->sel &&
-      (sc = we_handle_selection(atoms[c->sync])) != -1)
+      (sc = we_handle_selection(atoms[c->sync])) != -1) {
       set_clipboard_data(&clipboards[sc], (char*)c->data, c->size);
+      set_clipboard_own(&clipboards[sc]);
+   }
    if (c->maxclips > 0) store_clip(c);
 }
 
@@ -992,14 +1003,19 @@ static unsigned int hashb(char *b, size_t len) {
    hash += (hash << 3);
    hash ^= (hash >> 11);
    hash += (hash << 15);
+
+#if 0
+   OUT("hashed: %s", b);
+   OUT("size: %zu", len);
+   OUT("hash: %u", hash);
+#endif
    return hash;
 }
 
 /* handle copying */
 static void handle_copy(clipdata *c) {
    char *buffer = NULL; size_t len = 0;
-   unsigned int hash = 0;
-   static unsigned int ohash = 0;
+   unsigned int hash = 0, changed;
 
    if (c->owner == XCB_NONE &&
       (c->owner = get_owner_for_selection(atoms[c->sel])) == XCB_NONE) {
@@ -1027,7 +1043,7 @@ static void handle_copy(clipdata *c) {
 #endif
 
    if (!(buffer = get_xsel(atoms[c->sel], &len)) || !len) {
-      if (c->owner != xcbw) set_clipboard_own(c);
+      set_clipboard_own(c);
       return;
    }
 
@@ -1037,26 +1053,28 @@ static void handle_copy(clipdata *c) {
     * this is only neccessary to PRIMARY, so that the
     * history won't get bloated with non full selections. */
    if (c->sel == PRIMARY) {
-      if ((hash = hashb(buffer, len)) != ohash) {
+      if ((hash = hashb(buffer, len)) != c->ohash) {
          OUT("\4Start of PRIMARY copy");
          set_clipboard_data(c, buffer, len);
-         ohash = hash; free(buffer); return;
+         c->ohash = hash; free(buffer); return;
       } else {
-         if (c->hash == ohash) {
+         if (c->hash == c->ohash) {
             free(buffer); return;
          }
-         c->hash = ohash;
          OUT("\4End of PRIMARY copy");
       }
    } else {
       OUT("\4Got data from some other clipboard");
-      if (c->hash == (hash = hashb(buffer, len))) {
+      if (c->ohash == (hash = hashb(buffer, len))) {
          free(buffer); return;
       }
-      c->hash = hash;
+      c->ohash = hash;
    }
 
-   set_clipboard_data(c, buffer, len); free(buffer);
+   changed = set_clipboard_data(c, buffer, len);
+   free(buffer);
+   c->hash = hashb(c->data, c->size);
+   if (!changed || c->hash == hash) return;
    handle_clip(c);
 }
 
@@ -1304,6 +1322,14 @@ FUNC_ARG(arg_clear) {
    }
    return 1;
 }
+
+FUNC_ARG(arg_query) {
+   if (check_lock(1)) {
+      ERR("loliclip daemon is not running.");
+      return -1;
+   }
+   return 1;
+}
 #undef FUNC_ARG
 
 /* show usage */
@@ -1357,7 +1383,6 @@ static int handle_args(int argc, char **argv) {
    for (o = 0; o != LENGTH(clipargs); ++o)
       if (clipargs[o].atarg) {
          if (!clipargs[o].lonefunc) dolonely = 0;
-         if (o != 0 && check_lock(1)) goto need_lock;
          ret = clipargs[o].func(argc-clipargs[o].atarg, argv+clipargs[o].atarg);
          if (ret == 0) return 0;
          else if (ret == -1) return -1;
@@ -1368,16 +1393,11 @@ static int handle_args(int argc, char **argv) {
 
    for (o = 0; o != LENGTH(clipargs); ++o)
       if (clipargs[o].atarg && clipargs[o].lonefunc) {
-         if (o != 0 && check_lock(1)) goto need_lock;
          ret = clipargs[o].lonefunc(argc-clipargs[o].atarg, argv+clipargs[o].atarg);
          if (ret == 0) return 0;
          else if (ret == -1) return -1;
       }
    return 1;
-
-need_lock:
-   ERR("Daemon is not running");
-   return -1;
 }
 
 static int RUN = 1;
