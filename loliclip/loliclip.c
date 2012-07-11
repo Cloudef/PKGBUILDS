@@ -450,7 +450,6 @@ static int dmenu_puts(void *calldata, clipdata *c,
    if (rlen) return 1; limit = (blen>DMENU_LIMIT?DMENU_LIMIT:blen);
    printf("%4d: ", index);
    for (i = 0; i != limit; ++i) {
-      if (!isprint(buffer[i])) continue;
       if (ws && buffer[i]==' ') continue; ws = 0;
       printf("%c", (buffer[i]=='\n'||buffer[i]=='\r')?' ':buffer[i]);
       ws = (buffer[i]==' '||buffer[i]=='\n'||buffer[i]=='\r')?1:0;
@@ -465,10 +464,8 @@ static int ls_puts(void *calldata, clipdata *c,
       unsigned int hash, unsigned int index)
 {
    size_t i;
-   for (i = 0; i != blen; ++i){
-      if (!isprint(buffer[i])) continue;
+   for (i = 0; i != blen; ++i)
       printf("%c", buffer[i]);
-   }
    if (rlen+blen == size) puts("");
    return 1;
 }

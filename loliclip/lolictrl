@@ -31,7 +31,7 @@ usage() {
 # urls
 urlmode() {
    local url="$("$LOLICLIP" -m --${CLIPBOARD} |\
-      grep -oP "(https?:\/\/[-/.\w]+)" | $DMENU -p "loliurl")"
+      grep -aoP "(https?:\/\/[-/.\w]+)" | $DMENU -p "loliurl")"
    [[ -n "$url" ]] || exit 1
    echo "$url" | "$LOLICLIP" --${CLIPBOARD}
    "$LOLICLIP" --${CLIPBOARD} -g 0
