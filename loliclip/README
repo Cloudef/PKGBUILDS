@@ -9,8 +9,9 @@ By default it uses zlib compression.
 
 Also comes with bash script for dmenu access.
 
+MISC:
+   You can set clipboard data similar to xsel/xclip
+   echo "asd" | loliclip -p # copy to primary
+   echo "asd" | loliclip -c # copy to clipboard
 
-Issues:
-   - Settin new selection from command line is slow (compared to xsel, xclip)
-   - Print the data from clipboard "as is" (get rid of isprint)
-   - Some clipboard owning issues which might be related to slowness of issue #1.
+Those commands will leave loliclip process open until someone else takes ownership of the particular selection (ex. XA_CLIPBOARD).
