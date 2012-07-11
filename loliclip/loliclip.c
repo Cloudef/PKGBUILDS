@@ -589,14 +589,14 @@ static void store_clip(clipdata *c) {
    ext = "tmp";
    len = strlen(path)+1+strlen(ext)+1;
    if (!(tmp = malloc(len)))
-      goto fail;
+      goto out_of_memory;
    snprintf(tmp, len, "%s.%s", path, ext);
 
    if (USE_ZLIB) {
       ext = "dez";
       len = strlen(path)+1+strlen(ext)+1;
       if (!(zpath = malloc(len)))
-         goto fail;
+         goto out_of_memory;
       snprintf(zpath, len, "%s.%s", path, ext);
    }
 
@@ -663,6 +663,9 @@ static void store_clip(clipdata *c) {
    free(tmp);
    free(zpath);
    return;
+out_of_memory:
+   MEMERR();
+   goto fail;
 tmp_fail:
    ERR("Failed to open %s for writing.", tmp);
    goto fail;
@@ -1096,8 +1099,9 @@ static char* get_data_as_argument(int argc, char **argv) {
             (read = fread(buffer, 1, sizeof(buffer), stdin))) {
          if (data && (tmp = realloc(data, size+read+1)))
             data = tmp;
-         else if (data) goto fail;
+         else if (data) goto out_of_memory;
          else data = malloc(read+1);
+         if (!data) goto out_of_memory;
          memcpy(data+size, buffer, read);
          size += read;
       }
@@ -1106,8 +1110,9 @@ static char* get_data_as_argument(int argc, char **argv) {
       for (i = 0; i != argc; ++i) {
          if (data && (tmp = realloc(data, size+strlen(argv[i])+2)))
             data = tmp;
-         else if (data) goto fail;
+         else if (data) goto out_of_memory;
          else data = malloc(strlen(argv[i])+1);
+         if (!data) goto out_of_memory;
          if (size) data[size] = ' ';
          memcpy(data+(size?size+1:0), argv[i], strlen(argv[i]));
          size += strlen(argv[i])+(size?1:0);
@@ -1116,6 +1121,10 @@ static char* get_data_as_argument(int argc, char **argv) {
    }
    data[size] = 0;
    return data;
+
+out_of_memory:
+   MEMERR();
+   goto fail;
 no_arg:
    ERR("No data supplied as argument nor from stdin.");
 fail:
