@@ -146,7 +146,7 @@ static int xcb_timeout = 1;
 
 /* timeout to xcb loop blocking, when we don't
  * own all the clipboards. */
-static int xcb_timeout_loop = 1;
+static int xcb_timeout_loop = 10000 * 10;
 
 /* X timestamp of first request */
 static xcb_time_t xcb_timestamp = 0;
@@ -710,7 +710,7 @@ static xcb_generic_event_t* _xcb_get_last_event(uint8_t type) {
 }
 
 /* timed blocking X single event wait */
-static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type) {
+static xcb_generic_event_t* _xcb_wait_for_single_event(unsigned int seconds, unsigned int nanoseconds, uint8_t type) {
    int ret; fd_set fds;
    unsigned int xfd;
    struct timeval timeout;
@@ -720,7 +720,7 @@ static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type
       return ev;
    xcb_flush(xcb);
 
-   timeout.tv_sec  = seconds; timeout.tv_usec = 0;
+   timeout.tv_sec  = seconds; timeout.tv_usec = nanoseconds;
    xfd = xcb_get_file_descriptor(xcb);
    FD_ZERO(&fds); FD_SET(xfd, &fds);
    if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
@@ -729,7 +729,7 @@ static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type
 }
 
 /* timed blockin X event wait */
-static xcb_generic_event_t* _xcb_wait_for_event(int seconds) {
+static xcb_generic_event_t* _xcb_wait_for_event(unsigned int seconds, unsigned int nanoseconds) {
    int ret; fd_set fds;
    unsigned int xfd;
    struct timeval timeout;
@@ -739,7 +739,7 @@ static xcb_generic_event_t* _xcb_wait_for_event(int seconds) {
       return ev;
    xcb_flush(xcb);
 
-   timeout.tv_sec  = seconds; timeout.tv_usec = 0;
+   timeout.tv_sec  = seconds; timeout.tv_usec = nanoseconds;
    xfd = xcb_get_file_descriptor(xcb);
    FD_ZERO(&fds); FD_SET(xfd, &fds);
    if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
@@ -931,7 +931,7 @@ static char* get_xsel(xcb_atom_t selection, size_t *len) {
    xcb_convert_selection(xcb, xcbw, selection,
          atoms[UTF8_STRING], atoms[XSEL_DATA], XCB_CURRENT_TIME);
 
-   while ((ev = _xcb_wait_for_single_event(xcb_timeout, XCB_SELECTION_NOTIFY))) {
+   while ((ev = _xcb_wait_for_single_event(xcb_timeout, 0, XCB_SELECTION_NOTIFY))) {
       e = (xcb_selection_notify_event_t*)ev;
       string = fetch_xsel(e->requestor, e->property, len);
       free(ev);
@@ -1431,7 +1431,7 @@ int main(int argc, char **argv) {
    }
    while (!skiploop && RUN && !xcb_connection_has_error(xcb)) {
       if (doblock) ev = xcb_wait_for_event(xcb);
-      while (doblock || (ev = _xcb_wait_for_event(xcb_timeout_loop))) {
+      while (doblock || (ev = _xcb_wait_for_event(0, xcb_timeout_loop))) {
          if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST)
             handle_request((xcb_selection_request_event_t*)ev);
          else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR)
