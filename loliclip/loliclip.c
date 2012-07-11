@@ -475,7 +475,6 @@ static int ls_get(void *calldata, clipdata *c,
       const char *buffer, size_t blen, size_t rlen, size_t size,
       unsigned int hash, unsigned int index)
 {
-   size_t i;
    unsigned int arg = *(unsigned int*)calldata;
    if (index != arg && hash != arg) return 1;
    return ls_puts(calldata, c, buffer, blen, rlen, size, hash, index);
@@ -505,7 +504,11 @@ static int restore_clipboard(void *calldata, clipdata *c,
    memcpy(cbuf+rlen, buffer, blen);
 
    if (rlen+blen != size) return 1;
+
    rindex = *(unsigned int*)calldata;
+   if (rindex != index)
+      return 1;
+
    OUT("\4Restoring selection");
    set_clipboard_data(c, cbuf, size);
    free(cbuf); cbuf = NULL;
@@ -526,7 +529,7 @@ static int ls_clipboard(clipdata *c, char *path, void *calldata, lscallback call
       ext = "dez";
       len = strlen(path)+1+strlen(ext)+1;
       if (!(zpath = malloc(len)))
-         goto fail;
+         goto out_of_memory;
       snprintf(zpath, len, "%s.%s", path, ext);
 
       if (!(f = fopen(path, "rb")) || !(z = fopen(zpath, "w+b")))
@@ -700,7 +703,8 @@ static xcb_generic_event_t* _xcb_get_last_event(uint8_t type) {
 
 /* timed blocking X single event wait */
 static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type) {
-   int i, ret, xfd; fd_set fds;
+   int ret; fd_set fds;
+   unsigned int xfd;
    struct timeval timeout;
    xcb_generic_event_t *ev;
 
@@ -709,7 +713,8 @@ static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type
    xcb_flush(xcb);
 
    timeout.tv_sec  = seconds; timeout.tv_usec = 0;
-   FD_ZERO(&fds); FD_SET((xfd = xcb_get_file_descriptor(xcb)), &fds);
+   xfd = xcb_get_file_descriptor(xcb);
+   FD_ZERO(&fds); FD_SET(xfd, &fds);
    if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
       return NULL;
    return _xcb_get_last_event(type);
@@ -717,7 +722,8 @@ static xcb_generic_event_t* _xcb_wait_for_single_event(int seconds, uint8_t type
 
 /* timed blockin X event wait */
 static xcb_generic_event_t* _xcb_wait_for_event(int seconds) {
-   int i, ret, xfd; fd_set fds;
+   int ret; fd_set fds;
+   unsigned int xfd;
    struct timeval timeout;
    xcb_generic_event_t *ev;
 
@@ -726,7 +732,8 @@ static xcb_generic_event_t* _xcb_wait_for_event(int seconds) {
    xcb_flush(xcb);
 
    timeout.tv_sec  = seconds; timeout.tv_usec = 0;
-   FD_ZERO(&fds); FD_SET((xfd = xcb_get_file_descriptor(xcb)), &fds);
+   xfd = xcb_get_file_descriptor(xcb);
+   FD_ZERO(&fds); FD_SET(xfd, &fds);
    if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
       return NULL;
    return xcb_poll_for_event(xcb);
@@ -815,11 +822,9 @@ static int set_clipboard_clear(clipdata *c) {
 
 /* init crappy X selection/clipboard mess */
 static void init_crappy_clipboard_protocol(void) {
-   unsigned int i = 0; int c; void *data;
+   unsigned int i = 0; int c;
    xcb_intern_atom_reply_t *reply;
    xcb_intern_atom_cookie_t cookies[LENGTH(natoms)];
-   xcb_get_selection_owner_reply_t *owners[LENGTH(clipboards)];
-   xcb_get_property_reply_t *rowners[LENGTH(clipboards)];
 
    memset(atoms, XCB_NONE, LENGTH(atoms));
    memset(satoms, XCB_NONE, LENGTH(satoms));
@@ -993,10 +998,8 @@ static unsigned int hashb(char *b, size_t len) {
 /* handle copying */
 static void handle_copy(clipdata *c) {
    char *buffer = NULL; size_t len = 0;
-   unsigned int hash = 0, i, found;
+   unsigned int hash = 0;
    static unsigned int ohash = 0;
-   xcb_query_tree_reply_t *query;
-   xcb_window_t *w;
 
    if (c->owner == XCB_NONE &&
       (c->owner = get_owner_for_selection(atoms[c->sel])) == XCB_NONE) {
@@ -1005,6 +1008,10 @@ static void handle_copy(clipdata *c) {
    }
 
 #if 0
+   xcb_query_tree_reply_t *query;
+   xcb_window_t *w;
+   char found;
+   unsigned int i;
    if (c->owner != xcbw &&
       (query = xcb_query_tree_reply(xcb, xcb_query_tree(xcb, xcb_screen->root), 0))) {
       w = xcb_query_tree_children(query); found = 0;
@@ -1301,7 +1308,7 @@ FUNC_ARG(arg_clear) {
 
 /* show usage */
 static int usage(char *name) {
-   char o;
+   int o;
    printf("usage: %s [-", basename(name));
    for (o = 0; o != LENGTH(clipargs); ++o)
       printf("%c", clipargs[o].arg);
