@@ -71,7 +71,7 @@ sync() {
 # main
 main() {
    [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] && usage "$0"
-   "$LOLICLIP" -o &> /dev/null ||
+   "$LOLICLIP" -q &> /dev/null ||
       err "loliclip returned non zero.\ncheck that it's installed and daemon is running."
    [[ "$1" == "-u" ]] && urlmode
    [[ "$1" == "-spc" ]] && sync "primary"    "clipboard"
