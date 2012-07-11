@@ -21,7 +21,7 @@ package() {
    install -Dm775 "$srcdir/lolictrl" "${pkgdir}/usr/bin/lolictrl"
    install -Dm755 "$srcdir/loliclip" "${pkgdir}/usr/bin/loliclip"
 }
-md5sums=('ce5c2c597e8be22f53a944ee4ba186df'
+md5sums=('1bec1f87b357a66343598197494a672a'
          'e98909f9b22362469c5625232608df9c')
 
 # vim: set ts=8 sw=3 tw=0 :
