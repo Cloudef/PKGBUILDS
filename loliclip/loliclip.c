@@ -81,9 +81,10 @@ typedef struct clipdata  {
    { clipboard_to_handle, clipboard_to_sync, maxclips, flags, 0, 0, NULL, 0, XCB_NONE }
 
 /* clipboards to handle */
+#define NO_SYNC XNULL
 clipdata clipboards[] = {
-   REGISTER_CLIPBOARD(PRIMARY, XCB_NONE, 0, CLIPBOARD_NONE),
-   REGISTER_CLIPBOARD(SECONDARY, XCB_NONE, 0, CLIPBOARD_NONE),
+   REGISTER_CLIPBOARD(PRIMARY, NO_SYNC, 0, CLIPBOARD_NONE),
+   REGISTER_CLIPBOARD(SECONDARY, NO_SYNC, 0, CLIPBOARD_NONE),
    REGISTER_CLIPBOARD(CLIPBOARD, PRIMARY, 15,
          CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE  |
          CLIPBOARD_TRIM_TRAILING_NEWLINE),
@@ -954,7 +955,8 @@ static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
 /* handle X selection */
 static void handle_clip(clipdata *c) {
    int sc;
-   if (c->sync != c->sel && (sc = we_handle_selection(atoms[c->sync])) != -1)
+   if (c->sync != NO_SYNC && c->sync != c->sel &&
+      (sc = we_handle_selection(atoms[c->sync])) != -1)
       set_clipboard_data(&clipboards[sc], (char*)c->data, c->size);
    if (c->maxclips > 0) store_clip(c);
 }
