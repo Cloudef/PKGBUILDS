@@ -1074,7 +1074,7 @@ static void handle_copy(clipdata *c) {
    changed = set_clipboard_data(c, buffer, len);
    free(buffer);
    c->hash = hashb(c->data, c->size);
-   if (!changed || c->hash == hash) return;
+   if (!changed || (c->hash == hash && c->ohash != c->hash)) return;
    handle_clip(c);
 }
 
