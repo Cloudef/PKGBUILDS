@@ -1,0 +1,27 @@
+# Maintainer: Cloudef <mailroxas@gmail.com>
+# Dmenu client for MPD
+
+pkgname=lolimpd
+pkgver=1.0
+pkgrel=1
+pkgdesc='Dmenu client for MPD'
+arch=('any')
+url='http://cloudef.eu'
+license=('WTFPL')
+depends=('mpd' 'dmenu')
+makedepends=('gcc')
+source=('lolimpd.c' 'lolimpdnu')
+
+# Debug build?
+DEBUG=0
+
+package() {
+   [[ $DEBUG -eq 0 ]] || gcc -g              "$srcdir/lolimpd.c" -lmpdclient -o "$srcdir/lolimpd"
+   [[ $DEBUG -eq 0 ]] && gcc -DNDEBUG -s -Os "$srcdir/lolimpd.c" -lmpdclient -o "$srcdir/lolimpd"
+   install -Dm775 "$srcdir/lolimpdnu" "${pkgdir}/usr/bin/lolimpdnu"
+   install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
+}
+md5sums=('c631279e9201798f4bd9e84cf3d19e5a'
+         'ec7ffc2659ef0f3b24a464175f846e4d')
+
+# vim: set ts=8 sw=3 tw=0 :
