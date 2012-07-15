@@ -284,7 +284,7 @@ static void now_playing(void) {
    struct mpd_song *song = mpd_run_current_song(mpd->connection);
    queue_add_song(song, " - ");
    if ((cover = get_cover_art(song))) {
-      printf("cover: %s\n", cover);
+      printf("%s\n", cover);
       free(cover);
    }
    mpd_song_free(song);
