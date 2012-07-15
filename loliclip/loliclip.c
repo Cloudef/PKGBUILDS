@@ -829,8 +829,8 @@ static int set_clipboard_clear(clipdata *c) {
    return c->owner!=xcbw;
 }
 
-/* init crappy X selection/clipboard mess */
-static void init_crappy_clipboard_protocol(void) {
+/* init X selection/clipboard mess */
+static void init_clipboard_protocol(void) {
    unsigned int i = 0; int c;
    xcb_intern_atom_reply_t *reply;
    xcb_intern_atom_cookie_t cookies[LENGTH(natoms)];
@@ -1415,7 +1415,7 @@ int main(int argc, char **argv) {
       goto xcb_fail;
 
    init_window();
-   init_crappy_clipboard_protocol();
+   init_clipboard_protocol();
    xcb_flush(xcb);
 
    if (argc>1)
