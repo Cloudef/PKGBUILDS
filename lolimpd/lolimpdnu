@@ -1,9 +1,10 @@
 #!/bin/sh
 # dmenu access to lolimpd
 
-LOLIMPD="./lolimpd"
+LOLIMPD="lolimpd"
 main() {
    local song="$("$LOLIMPD" ls | sort | dmenu -l 15 -p "lolimpd")"
+   [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
 }
 main "$@"
