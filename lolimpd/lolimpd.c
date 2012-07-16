@@ -314,6 +314,7 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
       if (found) return RETURN_OK;
    }
 
+#if 0
    if (_strupstr(artist, needle) ||
        _strupstr(album, needle)  ||
        _strupstr(title, needle))
@@ -323,6 +324,7 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
        _strupstr(needle, album)  ||
        _strupstr(needle, title))
       return RETURN_OK;
+#endif
 
    return RETURN_FAIL;
 }

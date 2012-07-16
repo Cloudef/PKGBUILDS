@@ -21,7 +21,7 @@ package() {
    install -Dm775 "$srcdir/lolimpdnu" "${pkgdir}/usr/bin/lolimpdnu"
    install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
 }
-md5sums=('3faef3dd38bb16a37946827149a856ca'
+md5sums=('a7a668bd99b5922f5eb4f450dd7dc05a'
          '160b2a96b3837c5465848dbac87cd485')
 
 # vim: set ts=8 sw=3 tw=0 :
