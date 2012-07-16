@@ -278,6 +278,55 @@ static int queue_add_song(const struct mpd_song *song, const char *sep) {
    return RETURN_OK;
 }
 
+/* match song from queue */
+static int queue_match_song(const struct mpd_song *song, const char *needle, const char *sep) {
+   if (!song) return RETURN_FAIL;
+   char *basec;
+   const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
+   const char *track   = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
+   const char *comment = mpd_song_get_tag(song, MPD_TAG_COMMENT, 0);
+   const char *genre   = mpd_song_get_tag(song, MPD_TAG_GENRE, 0);
+   const char *album   = mpd_song_get_tag(song, MPD_TAG_ALBUM, 0);
+   const char *title   = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
+   const char *artist  = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
+   if (!title)  title  = mpd_song_get_tag(song, MPD_TAG_NAME, 0);
+   if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_ALBUM_ARTIST, 0);
+   if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_COMPOSER, 0);
+   if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_PERFORMER, 0);
+   if (!album && (basec = strdup(mpd_song_get_uri(song)))) {
+      album = basename(basec); free(basec);
+   }
+
+   if (!album || !artist || !title)
+      return RETURN_FAIL;
+
+   char found  = 0, *whole = NULL;
+   size_t lsep = strlen(sep);
+   size_t len  = strlen(artist)+lsep+strlen(album)+lsep+strlen(title)+2;
+   if ((whole = malloc(len))) {
+      snprintf(whole, len-1, "%s%s%s%s%s", artist, sep, album, sep, title);
+      if (!strcmp(needle, whole))
+         found = 1;
+      else if (_strupstr(whole, needle))
+         found = 1;
+
+      free(whole);
+      if (found) return RETURN_OK;
+   }
+
+   if (_strupstr(artist, needle) ||
+       _strupstr(album, needle)  ||
+       _strupstr(title, needle))
+      return RETURN_OK;
+
+   if (_strupstr(needle, artist) ||
+       _strupstr(needle, album)  ||
+       _strupstr(needle, title))
+      return RETURN_OK;
+
+   return RETURN_FAIL;
+}
+
 /* now playing */
 static void now_playing(void) {
    char *cover;
@@ -323,6 +372,32 @@ static int update_queue(void) {
 fail:
    MPDERR();
    return RETURN_FAIL;
+}
+
+/* search queue */
+static struct mpd_song* queue_search_song(const char *needle) {
+   struct mpd_song *song = NULL;
+   struct mpd_entity *entity;
+   assert(mpd && mpd->connection);
+
+   if (!mpd_send_list_queue_meta(mpd->connection))
+      goto fail;
+
+   while ((entity = mpd_recv_entity(mpd->connection))) {
+      if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
+         if (!song && queue_match_song(mpd_entity_get_song(entity), needle, "│") == RETURN_OK)
+               song = mpd_song_dup(mpd_entity_get_song(entity));
+      mpd_entity_free(entity);
+   }
+
+   mpd->queue.version = mpd_status_get_queue_version(mpd->status);
+   if (!mpd_response_finish(mpd->connection))
+         goto fail;
+
+   return song;
+fail:
+   MPDERR();
+   return NULL;
 }
 
 /* update status */
@@ -414,44 +489,26 @@ connect_fail:
 #define FUNC_OPT(x) static int x(int argc, char **argv)
 FUNC_OPT(opt_play) {
    struct mpd_song *song = NULL;
-   unsigned int tt = 0;
-   char match[256], *s, *i, *t;
-   OUT("play: %s", argc?argv[0]:"<none>");
-
+   size_t len = 0, i = 0;
+   char *search;
    if (!argc) mpd_send_play(mpd->connection);
    else {
-      if (!mpd_search_queue_songs(mpd->connection, 0))
-         goto fail;
+      for (i = 0; i != argc; ++i) {
+         if (i) len += 1;
+         len += strlen(argv[i]);
+      } len += 2;
 
-      memset(match, 0, sizeof(match)-1);
-      for (s = argv[0], i = match; *s; ++s) {
-         t = s+1;
-         if (!*t || !strncmp(s, "│", strlen("│"))) {
-            if (!*t) *i = *s;
-            if (tt == 0 || tt == 2) {
-               if (!mpd_search_add_any_tag_constraint(mpd->connection,
-                        MPD_OPERATOR_DEFAULT, match))
-                  goto fail;
-            } else {
-               if (!mpd_search_add_tag_constraint(mpd->connection,
-                        MPD_OPERATOR_DEFAULT, MPD_TAG_ALBUM, match))
-                  goto fail;
-            }
-            OUT("match: %s", match);
-            if (!*t) break;
-            memset(match, 0, sizeof(match)-1);
-            i = match; ++tt; s += strlen("│")-1;
-            continue;
-         }
-         *i = *s; ++i;
+      if (!(search = malloc(len)))
+         return EXIT_FAILURE;
+
+      memset(search, 0, len);
+      for (i = 0; i != argc; ++i) {
+         if (i) search = strncat(search, " ", len);
+         search = strncat(search, argv[i], len);
       }
 
-      if (!mpd_search_commit(mpd->connection))
-         goto fail;
-
-      if (!(song = mpd_recv_song(mpd->connection)))
-         goto fail;
-
+      OUT("play: %s", search);
+      song = queue_search_song(search);
       queue_add_song(song, " - ");
       mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
       mpd_song_free(song);
