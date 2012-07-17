@@ -122,8 +122,8 @@ launch() {
          "$program" "$1"
       fi
    else
-      # open in background
-      "$program" "$1" &
+      # open in background (redirects everything to /dev/null)
+      "$program" "$1" &> /dev/null &
    fi
    exit $?
 }
