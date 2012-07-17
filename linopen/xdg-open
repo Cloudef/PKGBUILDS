@@ -31,7 +31,8 @@ match_regexp() {
 
 # get terminal emulator from configuration
 get_term() {
-   getconfig | grep -w "^terminal" | head -1 | cut -d = -f 2
+   # inside echo (strip whitespace)
+   echo $(getconfig | grep -w "^terminal" | head -1 | cut -d = -f 2 | sed 's/[#].*//')
 }
 
 # check, if program needs terminal
@@ -56,6 +57,7 @@ needs_fork() {
 # $2 = forced program
 launch() {
    local program="$2"
+   local interm=0
 
    # is directory?
    [[ -d "$1" ]] &&
@@ -93,6 +95,13 @@ launch() {
    [[ -n "$program" ]] || program="$(getconfig | grep "^default:" | \
       head -1 | cut -d : -f 2)"
 
+   # check arguments
+   [[ -n "$(echo "$program" | grep "\->interm")" ]] && interm=1
+
+   # sed out the arguments || comments
+   program="$(echo "$program" | sed 's/->.*//;s/[#].*//')"
+   program="$(echo $program)" # strip leading&&trailing whitespace
+
    # check if program is enviroiment variable
    [[ -n "$(echo "$program" | grep '^\$')" ]] && {
       program="$(echo "$program" | sed 's/^\$//')"
@@ -104,7 +113,7 @@ launch() {
       err "could not find program for '$(basename $1)', check your configuration"
 
    # check if we need term or fork
-   if needs_term "$program"; then
+   if [[ $interm -eq 1 ]] || needs_term "$program"; then
       if needs_fork; then
          # open in new terminal
          "$(get_term)" -e "$program" "$1" &
