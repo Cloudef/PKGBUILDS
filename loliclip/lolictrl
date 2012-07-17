@@ -31,10 +31,10 @@ usage() {
 # urls
 urlmode() {
    local url="$("$LOLICLIP" -l --${CLIPBOARD} |\
-      grep -aoP "(https?:\/\/[-/.\w]+)" | $DMENU -p "loliurl")"
+      grep -aoP "(https?:\/\/[-/.\?=&%\w]+)" | $DMENU -p "loliurl")"
    [[ -n "$url" ]] || exit 1
    echo "#LC:skip_history:$url" | "$LOLICLIP" --${CLIPBOARD}
-   "$LOLICLIP" --${CLIPBOARD} -g 0
+   echo "$url"
    exit 0
 }
 
