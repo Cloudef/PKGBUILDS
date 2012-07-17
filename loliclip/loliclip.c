@@ -13,12 +13,14 @@
 #include <zlib.h>
 #include <xcb/xcb.h>
 
-#define LOCK_FILE    "/tmp/loliclip.pid"
-#define DMENU_LIMIT  230
+#ifdef XCB_UTIL
+#  include <xcb/xcb_util.h>
+#endif
 
 #define LENGTH(x) (sizeof(x)/sizeof(*x))
 #define XCB_EVENT_RESPONSE_TYPE_MASK   (0x7f)
 #define XCB_EVENT_RESPONSE_TYPE(e)     (e->response_type & XCB_EVENT_RESPONSE_TYPE_MASK)
+#define STRNCMP(x,y) strncmp(x,y,strlen(y))
 
 /* atom crap */
 enum { PRIMARY, SECONDARY, CLIPBOARD, XSEL_DATA,
@@ -53,22 +55,13 @@ const char *supported[] = {
 static xcb_atom_t atoms[LENGTH(natoms)];
 static xcb_atom_t satoms[LENGTH(supported)];
 
-/* use zlib compression? */
-#define ZLIB_LEVEL Z_BEST_SPEED
-static char USE_ZLIB = 1;
-
-/* clipboard data */
-enum {
-   CLIPBOARD_NONE = 0x0,
-   CLIPBOARD_TRIM_WHITESPACE = 0x1,                /* trim trailing and leading whitespace */
-   CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE = 0x2,   /* trim whitespace, if not multiline */
-   CLIPBOARD_TRIM_TRAILING_NEWLINE = 0x4           /* trim trailing newline */
-};
+/* clipboard data struct */
 typedef struct clipdata  {
    unsigned int sel;
    unsigned int sync;
    unsigned int maxclips;
    unsigned int flags;
+   unsigned int cflags;
    unsigned int hash, ohash;
    size_t size;
    void *data;
@@ -76,19 +69,23 @@ typedef struct clipdata  {
    xcb_window_t owner;
 } clipdata;
 
-/* helper macro */
+/* helper macros for registering clipboards */
 #define REGISTER_CLIPBOARD(clipboard_to_handle, clipboard_to_sync, maxclips, flags) \
-   { clipboard_to_handle, clipboard_to_sync, maxclips, flags, 0, 0, 0, NULL, 0, XCB_NONE }
-
-/* clipboards to handle */
+   { clipboard_to_handle, clipboard_to_sync, maxclips, flags, 0, 0, 0, 0, NULL, 0, XCB_NONE }
 #define NO_SYNC XNULL
-clipdata clipboards[] = {
-   REGISTER_CLIPBOARD(PRIMARY, NO_SYNC, 0, CLIPBOARD_NONE),
-   REGISTER_CLIPBOARD(SECONDARY, NO_SYNC, 0, CLIPBOARD_NONE),
-   REGISTER_CLIPBOARD(CLIPBOARD, PRIMARY, 15,
-         CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE  |
-         CLIPBOARD_TRIM_TRAILING_NEWLINE),
-};
+
+/* clipboard command sequences */
+typedef enum clipflag {
+   CLIP_NONE = 0x0,
+   CLIP_SKIP_HISTORY = 0x1,
+} clipflag;
+typedef struct cmdseq {
+   const char *cmd;
+   clipflag flag;
+} cmdseq;
+
+/* load configuration */
+#include "config.h"
 
 /* argument stuff */
 typedef int (*argfunc)(int argc, char **argv);
@@ -345,15 +342,38 @@ static int isml(char *buffer, size_t len) {
    return 0;
 }
 
+/* set_clipboard_data uses this function */
+static int set_clipboard_own(clipdata *c);
+
 /* assign new clipboard data
  * return 1 == success
  * return 0 == fail */
 static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
-   char *s, *copy = NULL; size_t nlen;
+   char *s, *copy = NULL; size_t nlen, i;
+   unsigned int flags = 0;
+
+   if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
+      set_clipboard_own(c);
+
+   /* do modification in s */
+   s = buffer;
+
+   /* begin command sequence */
+   if (!STRNCMP(s, LOLICLIP_CMD_SEQ)) {
+      len -= strlen(LOLICLIP_CMD_SEQ);
+      for (i = 0, s += strlen(LOLICLIP_CMD_SEQ); i != LENGTH(cmdseqs); ++i) {
+         if (!STRNCMP(s, cmdseqs[i].cmd)) {
+            flags |= cmdseqs[i].flag;
+            len   -= strlen(cmdseqs[i].cmd);
+            s     += strlen(cmdseqs[i].cmd);
+            OUT("FOUND CMD %s", cmdseqs[i].cmd);
+         }
+      }
+   }
 
    if (c->flags & CLIPBOARD_TRIM_WHITESPACE ||
       (c->flags & CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE && !isml(buffer, len))) {
-      if (!(copy = trim_whitespace(buffer, len, &nlen)) || !nlen)
+      if (!(copy = trim_whitespace(s, len, &nlen)) || !nlen)
          goto fail; /* prop empty after trimming */
       len = nlen;
    }
@@ -361,7 +381,7 @@ static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
    if (!copy) {
       if (!len || !(copy = malloc(len+1)))
          goto fail;
-      memcpy(copy, buffer, len); copy[len] = 0;
+      memcpy(copy, s, len); copy[len] = 0;
    }
 
    if (c->flags & CLIPBOARD_TRIM_TRAILING_NEWLINE) {
@@ -372,7 +392,7 @@ static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
    }
 
    if (c->data) free(c->data);
-   c->data = copy; c->size = len;
+   c->data = copy; c->size = len; c->cflags = flags;
    return 1;
 
 fail:
@@ -969,12 +989,15 @@ static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
 /* handle X selection */
 static void handle_clip(clipdata *c) {
    int sc;
+
    if (c->sync != NO_SYNC && c->sync != c->sel &&
       (sc = we_handle_selection(atoms[c->sync])) != -1) {
       set_clipboard_data(&clipboards[sc], (char*)c->data, c->size);
       set_clipboard_own(&clipboards[sc]);
    }
-   if (c->maxclips > 0) store_clip(c);
+
+   if (!(c->cflags & CLIP_SKIP_HISTORY) && c->maxclips > 0)
+      store_clip(c);
 }
 
 /* handle selection request */
@@ -1182,6 +1205,10 @@ FUNC_ARG(arg_primary_sync) {
    OUT("\4Sync PRIMARY");
    if ((data = get_data_as_argument(argc, argv))) {
       OUT("\2data: %s", data);
+      if (daemon(0, 0) != 0) {
+         ERR("\1Failed to become a daemon");
+         return -1;
+      }
       set_xsel(atoms[PRIMARY], data, strlen(data));
       free(data);
    }
@@ -1205,6 +1232,10 @@ FUNC_ARG(arg_secondary_sync) {
    OUT("\4Sync SECONDARY");
    if ((data = get_data_as_argument(argc, argv))) {
       OUT("\2data: %s", data);
+      if (daemon(0, 0) != 0) {
+         ERR("\1Failed to become a daemon");
+         return -1;
+      }
       set_xsel(atoms[SECONDARY], data, strlen(data));
       free(data);
    }
@@ -1228,6 +1259,10 @@ FUNC_ARG(arg_clipboard_sync) {
    OUT("\4Sync CLIPBOARD");
    if ((data = get_data_as_argument(argc, argv))) {
       OUT("\2data: %s", data);
+      if (daemon(0, 0) != 0) {
+         ERR("\1Failed to become a daemon");
+         return -1;
+      }
       set_xsel(atoms[CLIPBOARD], data, strlen(data));
       free(data);
    }
@@ -1436,7 +1471,11 @@ int main(int argc, char **argv) {
             handle_request((xcb_selection_request_event_t*)ev);
          else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR)
             handle_clear((xcb_selection_clear_event_t*)ev);
+#ifdef XCB_UTIL
+         else OUT("\3xcb: \1unhandled event '\5%s\1'", xcb_event_get_label(ev->response_type));
+#else
          else OUT("\3xcb: \1unhandled event");
+#endif
          free(ev); if (doblock) break;
       }
 
