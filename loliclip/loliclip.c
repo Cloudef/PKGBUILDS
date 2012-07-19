@@ -25,7 +25,7 @@
 /* atom crap */
 enum { PRIMARY, SECONDARY, CLIPBOARD, XSEL_DATA,
        UTF8_STRING, STRING, TIMESTAMP, TARGETS,
-       DELETE, XNULL, TEXT, INTEGER };
+       DELETE, XNULL, TEXT, INTEGER, ATOM };
 const char *natoms[] = {
    "PRIMARY",
    "SECONDARY",
@@ -38,7 +38,8 @@ const char *natoms[] = {
    "DELETE",
    "NULL",
    "TEXT",
-   "INTEGER"
+   "INTEGER",
+   "ATOM"
 };
 
 /* supported targets */
@@ -797,6 +798,7 @@ static void set_support(const char *name, xcb_atom_t atom) {
    unsigned int i = 0;
    for (i = 0; i != LENGTH(supported); ++i)
       if (!strcmp(name, supported[i])) {
+         OUT("support: %s", name);
          satoms[i] = atom;
          return;
       }
@@ -918,8 +920,10 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
 
    if (!ev.property) ev.property = ev.target;
    if (!xcb_timestamp) xcb_timestamp = time;
-   if (ev.time != XCB_CURRENT_TIME && ev.time < xcb_timestamp)
+   if (ev.time != XCB_CURRENT_TIME && ev.time < xcb_timestamp) {
+      OUT("Crap timestamp");
       ev.property = XCB_NONE;
+   }
 
    if (target == atoms[UTF8_STRING])
       xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
@@ -935,9 +939,13 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
             atoms[XNULL], 0, 0, NULL);
    else if (target == atoms[TARGETS])
       xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-            atoms[XCB_ATOM], 32, LENGTH(satoms), satoms);
-   else ev.property = XCB_NONE;
+            atoms[ATOM], 32, LENGTH(satoms), satoms);
+   else {
+      OUT("Crap property");
+      ev.property = XCB_NONE;
+   }
 
+   OUT("SENT: %s [%zu]", (char*)data, size);
    xcb_send_event(xcb, 0, ev.requestor, XCB_EVENT_MASK_NO_EVENT, (char*)&ev);
    xcb_flush(xcb);
 }
@@ -1108,6 +1116,12 @@ static void handle_clear(xcb_selection_clear_event_t *e) {
    OUT("\3xcb: clear request");
    if ((c = we_handle_selection(e->selection)) == -1)
       return;
+
+   /* don't do it */
+   if (clipboards[c].flags == CLIPBOARD_TRIM_TRAILING_NEWLINE) {
+      set_clipboard_own(&clipboards[c]);
+      return;
+   }
 
    /* don't let go of other clipboards */
    clipboards[c].owner = XCB_NONE;
