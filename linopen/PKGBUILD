@@ -2,7 +2,7 @@
 # Intelligent and suckless replacement for xdg-open
 
 pkgname=linopen
-pkgver=1.1
+pkgver=1.2
 pkgrel=1
 pkgdesc='Intelligent and suckless replacement for xdg-open'
 arch=('any')
@@ -18,7 +18,7 @@ package() {
    install -Dm755 "$srcdir/linopen.conf" "${pkgdir}/etc/linopen.conf"
    ln -s "/usr/bin/xdg-open" "$pkgdir/usr/bin/open"
 }
-md5sums=('03ed4dc3c6570eb0f711c86c2a0a6d65'
-         'c24b3f519cf3f7543c582010fb413f87')
+md5sums=('3344f2dc4a130e4c07de37d2f6bec249'
+         'ff3abbb38d7b9d457d1977af4d1b2e39')
 
 # vim: set ts=8 sw=3 tw=0 :

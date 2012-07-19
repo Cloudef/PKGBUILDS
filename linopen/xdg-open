@@ -76,7 +76,7 @@ launch() {
    # test against extension
    [[ -n "$program" ]] || {
       local ext=${1##*.};
-      program="$(getconfig | grep "^$ext:" | cut -d : -f 2)"
+      program="$(getconfig | grep "^.$ext:" | cut -d : -f 2)"
    }
 
    # test against whole mime type
