@@ -1,12 +1,12 @@
 Lightweight clipboard manager for X
-config.h coming later.
 
-For now it keeps history of your XA_CLIPBOARD,
+By default it keeps history of your XA_CLIPBOARD,
 and keeps XA_PRIMARY on sync with it.
 
 History is saved in XDG_USER_DATA/loliclip or $HOME/.local/loliclip
 By default it uses zlib compression.
 
+Change settings in config.h
 Also comes with bash script for dmenu access.
 
 MISC:
