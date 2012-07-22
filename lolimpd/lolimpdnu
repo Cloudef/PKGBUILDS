@@ -3,7 +3,9 @@
 
 LOLIMPD="lolimpd"
 main() {
-   local song="$("$LOLIMPD" ls | sort | dmenu -l 15 -p "lolimpd")"
+   # with sorting (disabled by default, sorting is going to be added into lolimpd)
+   # local song="$("$LOLIMPD" ls | sort | dmenu -l 15 -p "lolimpd")"
+   local song="$("$LOLIMPD" ls | dmenu -l 15 -p "lolimpd")"
    [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
 }

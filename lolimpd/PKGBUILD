@@ -22,6 +22,6 @@ package() {
    install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
 }
 md5sums=('a7a668bd99b5922f5eb4f450dd7dc05a'
-         '160b2a96b3837c5465848dbac87cd485')
+         '4c6b627ad23a2fafcd49c96ebb08c8fb')
 
 # vim: set ts=8 sw=3 tw=0 :
