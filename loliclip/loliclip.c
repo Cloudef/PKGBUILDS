@@ -1002,7 +1002,7 @@ static void handle_clip(clipdata *c) {
       (sc = we_handle_selection(atoms[c->sync])) != -1) {
       set_clipboard_data(&clipboards[sc], (char*)c->data, c->size);
       set_clipboard_own(&clipboards[sc]);
-      OUT("Synced from 0x%x to 0x%x\n", atoms[c->sel], atoms[c->sync]);
+      OUT("Synced from 0x%x to 0x%x", atoms[c->sel], atoms[c->sync]);
    }
 
    if (!(c->cflags & CLIP_SKIP_HISTORY) && c->maxclips > 0)
