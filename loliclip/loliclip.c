@@ -1087,7 +1087,6 @@ static void handle_copy(clipdata *c) {
    if (c->sel == PRIMARY) {
       if ((hash = hashb(buffer, len)) != c->ohash) {
          OUT("\4Start of PRIMARY copy");
-         set_clipboard_data(c, buffer, len);
          c->ohash = hash; free(buffer); return;
       } else {
          if (c->hash == c->ohash) {
