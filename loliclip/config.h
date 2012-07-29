@@ -24,8 +24,8 @@ enum {
  *
  * arguments are following:
  * REGISTER_CLIPBOARD(
- *    clipboard atom index,
- *    index to clipboard you want to sync with,
+ *    clipboard name,
+ *    name of clipboard you want to synchorize to,
  *    maximum allowed lenght for clipboard history,
  *    post-processing flags for new clipboard data
  * )
@@ -51,13 +51,45 @@ clipdata clipboards[] = {
          CLIPBOARD_OWN_IMMEDIATLY),
 };
 
+/* registered special selections and their settings
+ * loliclip will only handle the registered special selections
+ *
+ * arguments are following:
+ * REGISTER_SELECTION(
+ *    special selection name,
+ *    shared binary data? (helps save ram, but selection is shared)
+ * )
+ *
+ * I've included python script with loliclip that you can use
+ * to get targets from different X applications, which loliclip treats
+ * as "special selections".
+ *
+ * If ctrl-c isn't working in some application as expected when loliclip
+ * is running, it's most like that the target isn't registered here.
+ *
+ */
+static specialclip sclip[] = {
+   REGISTER_SELECTION("x-special/gnome-copied-files", 0),
+   REGISTER_SELECTION("image/tiff", 1),
+   REGISTER_SELECTION("image/bmp", 1),
+   REGISTER_SELECTION("image/x-bmp", 1),
+   REGISTER_SELECTION("image/x-MS-bmp", 1),
+   REGISTER_SELECTION("image/x-icon", 1),
+   REGISTER_SELECTION("image/x-ico", 1),
+   REGISTER_SELECTION("image/x-win-bitmap", 1),
+   REGISTER_SELECTION("image/jpeg", 1),
+};
+
 /* command sequence starter */
 #define LOLICLIP_CMD_SEQ "#LC:"
 
-/* commands and their assigned bits
- *
- * CLIP_SKIP_HISTORY : skips clipboard history
- */
+/* bit flags for command sequence actions */
+typedef enum clipflag {
+   CLIP_NONE = 0x0,
+   CLIP_SKIP_HISTORY = 0x1, /* skups clipboard history */
+} clipflag;
+
+/* commands and their assigned bits */
 static cmdseq cmdseqs[] = {
    { "skip_history:", CLIP_SKIP_HISTORY }
 };

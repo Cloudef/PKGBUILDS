@@ -70,36 +70,6 @@ typedef struct specialclip {
    struct specialclip *sclip;
 } specialclip;
 
-/* helper for special clipboards */
-#define REGISTER_CLIPBOARD(name, share_binary) \
-   { name, share_binary, XCB_NONE, 0, NULL, NULL }
-
-/* index */
-enum {
-   GNOME_FILE_COPY,
-   IMAGE_DATA,
-};
-
-/* init special clipboards */
-specialclip bclip = REGISTER_CLIPBOARD("BINARY DATA", 0);
-static specialclip sclip[] = {
-   REGISTER_CLIPBOARD("x-special/gnome-copied-files", 0),
-   REGISTER_CLIPBOARD("image/tiff", 1),
-   REGISTER_CLIPBOARD("image/bmp", 1),
-   REGISTER_CLIPBOARD("image/x-bmp", 1),
-   REGISTER_CLIPBOARD("image/x-MS-bmp", 1),
-   REGISTER_CLIPBOARD("image/x-icon", 1),
-   REGISTER_CLIPBOARD("image/x-ico", 1),
-   REGISTER_CLIPBOARD("image/x-win-bitmap", 1),
-   REGISTER_CLIPBOARD("image/jpeg", 1),
-};
-
-/* supported atoms stored here */
-static xcb_atom_t satoms[LENGTH(textsel)+LENGTH(sclip)];
-
-/* undef */
-#undef REGISTER_CLIPBOARD
-
 /* clipboard data struct */
 typedef struct clipdata  {
    const char *name;
@@ -117,24 +87,31 @@ typedef struct clipdata  {
 } clipdata;
 
 /* clipboard command sequences */
-typedef enum clipflag {
-   CLIP_NONE = 0x0,
-   CLIP_SKIP_HISTORY = 0x1,
-} clipflag;
 typedef struct cmdseq {
    const char *cmd;
-   clipflag flag;
+   unsigned int flag;
 } cmdseq;
 
 /* helper macros for registering clipboards */
 #define REGISTER_CLIPBOARD(clipboard_to_handle, clipboard_to_sync, maxclips, flags) \
    { clipboard_to_handle, clipboard_to_sync, XCB_NONE, maxclips, flags, 0, 0, 0, 0, NULL, 0, 0, XCB_NONE }
 
+/* register special selections */
+#define REGISTER_SELECTION(name, share_binary) \
+   { name, share_binary, XCB_NONE, 0, NULL, NULL }
+
+/* shared binary selection */
+specialclip bclip = REGISTER_SELECTION("BINARY DATA", 0);
+
 /* load configuration */
 #include "config.h"
 
 /* undef */
 #undef REGISTER_CLIPBOARD
+#undef REGISTER_SELECTION
+
+/* supported atoms stored here */
+static xcb_atom_t satoms[LENGTH(textsel)+LENGTH(sclip)];
 
 /* argument stuff */
 typedef int (*argfunc)(int argc, char **argv);
