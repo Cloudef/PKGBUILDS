@@ -60,7 +60,7 @@ clipdata clipboards[] = {
  *    shared binary data? (helps save ram, but selection is shared)
  * )
  *
- * I've included python script with loliclip that you can use
+ * I've included python script on the git repo that you can use
  * to get targets from different X applications, which loliclip treats
  * as "special selections".
  *
