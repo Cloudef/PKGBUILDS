@@ -3,7 +3,7 @@
 
 pkgname=loliclip
 pkgver=1.7
-pkgrel=4
+pkgrel=5
 pkgdesc='Lightweight clipboard manager for X'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
@@ -21,8 +21,8 @@ package() {
    install -Dm775 "$srcdir/lolictrl" "${pkgdir}/usr/bin/lolictrl"
    install -Dm755 "$srcdir/loliclip" "${pkgdir}/usr/bin/loliclip"
 }
-md5sums=('ef32d21df44ace5b9815b15a74f90182'
+md5sums=('cb0f31e0572b5bde2c9e5a0dbb296ec9'
          '0a2bcfcced64dfe89ea4dfa28ca505aa'
-         '29d3a83ed7e61b1ee23bf3ac646d4306')
+         '69cc38e6f4e8c59183b759c7832e99f7')
 
 # vim: set ts=8 sw=3 tw=0 :
