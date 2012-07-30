@@ -386,6 +386,8 @@ static int set_clipboard_data(clipdata *c, char *buffer, size_t len) {
    char *s, *copy = NULL; size_t nlen, i;
    unsigned int flags = 0;
 
+   if (!buffer || !len) return 0;
+
    /* do modification in s */
    s = buffer;
 
