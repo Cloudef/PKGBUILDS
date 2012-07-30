@@ -30,8 +30,9 @@ usage() {
 
 # urls
 urlmode() {
+   local protos="https?|ftps?|mailto|ssh|git|file"
    local url="$("$LOLICLIP" -l --${CLIPBOARD} |\
-      grep -aoP "(https?:\/\/[-/.\?=&%\w]+)" | $DMENU -p "loliurl")"
+      grep -aoP "(($protos):\/\/[-/.\?=&%()@\w]+)" | $DMENU -p "loliurl")"
    [[ -n "$url" ]] || exit 1
    echo "#LC:skip_history:$url" | "$LOLICLIP" --${CLIPBOARD}
    echo "$url"
