@@ -664,9 +664,11 @@ static void store_clip(clipdata *c) {
 
    size_t i = 0;
    OUT("\2Storing to \4%s\5\n%s", c->name, (char*)c->data);
+#ifndef NDEBUG
    for (i = 0; i != c->size; ++i)
       printf("%d", ((char*)c->data)[i]);
    puts("");
+#endif
    OUT("\2hash:  \5%u", c->hash);
    OUT("\2size:  \5%zu", c->size);
    OUT("\2db:    \5%s", path);
