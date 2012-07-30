@@ -69,7 +69,9 @@ clipdata clipboards[] = {
  *
  */
 static specialclip sclip[] = {
+   REGISTER_SELECTION("text/uri-list", 0),
    REGISTER_SELECTION("x-special/gnome-copied-files", 0),
+   REGISTER_SELECTION("application/x-kde-cutselection", 0),
    REGISTER_SELECTION("image/tiff", 1),
    REGISTER_SELECTION("image/bmp", 1),
    REGISTER_SELECTION("image/x-bmp", 1),
