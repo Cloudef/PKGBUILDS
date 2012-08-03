@@ -17,6 +17,7 @@
 #  include <xcb/xcb_util.h>
 #endif
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define LENGTH(x) (sizeof(x)/sizeof(*x))
 #define XCB_EVENT_RESPONSE_TYPE_MASK   (0x7f)
 #define XCB_EVENT_RESPONSE_TYPE(e)     (e->response_type & XCB_EVENT_RESPONSE_TYPE_MASK)
@@ -154,7 +155,7 @@ static cliparg clipargs[] = {
    { 0, 'm', "dmenu",      0, arg_dmenu,     NULL,                "\tDmenu friendly listing." },
    { 0, 'C', "clear",      0, arg_clear,     NULL,                "\tClears clipboard history." },
    { 0, 'q', "query",      0, arg_query,     NULL,                "\tQuery if loliclip daemon is running." },
-   { 0, 'b', "binary",     0, arg_binary,    NULL,                "Get binary data from clipboard." }
+   { 0, 'b', "binary",     1, arg_binary,    NULL,                "Get binary data from clipboard." }
 };
 
 /* xcb connection */
@@ -168,7 +169,7 @@ static xcb_screen_t *xcb_screen;
 
 /* timeout to xcb loop blocking, when we don't
  * own all the clipboards. */
-static int xcb_timeout_loop = 25000 * 10;
+static int xcb_timeout_loop = 20000 * 10;
 
 /* timeout to get xsel calls */
 static int xcb_timeout_xsel_s  = 0;
@@ -206,6 +207,9 @@ static const char *colors[] = {
    "\33[37m", /* white */
    "\33[0m",  /* normal */
 };
+
+/* common functions */
+static int set_clipboard_own(clipdata *c);
 
 /* colored print */
 static void _cprnt(FILE *out, char *buffer) {
@@ -289,8 +293,7 @@ state_fail:
 }
 
 /* decomress source to destination */
-int zdecompress(FILE *s, FILE *d)
-{
+int zdecompress(FILE *s, FILE *d) {
    int ret; unsigned have; z_stream strm;
    unsigned char in[ZCHUNK], out[ZCHUNK];
 
@@ -386,10 +389,6 @@ static int isbinary(char *buffer, size_t len) {
    //OUT("BINARY: %zu/%zu", i, len);
    return i<len;
 }
-
-/* set_clipboard_data uses this function */
-static int set_clipboard_own(clipdata *c);
-static unsigned int hashb(char *b, size_t len);
 
 /* assign new special selection data */
 static int set_special_selection_data(specialclip *s, void *buffer, size_t len) {
@@ -549,8 +548,7 @@ fail:
 /* dmenu puts callback for ls */
 static int dmenu_puts(void *calldata, clipdata *c,
       const char *buffer, size_t blen, size_t rlen, size_t size,
-      unsigned int hash, unsigned int index)
-{
+      unsigned int hash, unsigned int index) {
    size_t i, limit; char ws = 0;
    if (rlen) return 1; limit = (blen>DMENU_LIMIT?DMENU_LIMIT:blen);
    printf("%4d: ", index);
@@ -566,8 +564,7 @@ static int dmenu_puts(void *calldata, clipdata *c,
 /* puts callback for ls */
 static int ls_puts(void *calldata, clipdata *c,
       const char *buffer, size_t blen, size_t rlen, size_t size,
-      unsigned int hash, unsigned int index)
-{
+      unsigned int hash, unsigned int index) {
    size_t i;
    for (i = 0; i != blen; ++i)
       printf("%c", buffer[i]);
@@ -578,8 +575,7 @@ static int ls_puts(void *calldata, clipdata *c,
 /* get callback for ls */
 static int ls_get(void *calldata, clipdata *c,
       const char *buffer, size_t blen, size_t rlen, size_t size,
-      unsigned int hash, unsigned int index)
-{
+      unsigned int hash, unsigned int index) {
    unsigned int arg = *(unsigned int*)calldata;
    if (index != arg && hash != arg) return 1;
    return ls_puts(calldata, c, buffer, blen, rlen, size, hash, index);
@@ -588,8 +584,7 @@ static int ls_get(void *calldata, clipdata *c,
 /* restore clipboard data */
 static int restore_clipboard(void *calldata, clipdata *c,
       const char *buffer, size_t blen, size_t rlen, size_t size,
-      unsigned int hash, unsigned int index)
-{
+      unsigned int hash, unsigned int index) {
    static char *cbuf = NULL;
    static size_t lastsize = 0;
    unsigned int rindex;
@@ -772,6 +767,7 @@ static void store_clip(clipdata *c) {
       rename(tmp, path);
    }
 
+   OUT("\2STORED!");
    free(path);
    free(tmp);
    free(zpath);
@@ -802,13 +798,13 @@ fail:
 }
 
 /* poll for certain X event */
-static xcb_generic_event_t* _xcb_get_last_event(uint8_t type) {
-   xcb_generic_event_t *ev, *tev = NULL;
+static xcb_generic_event_t* _xcb_get_first_event(uint8_t type) {
+   xcb_generic_event_t *ev;
    while ((ev = xcb_poll_for_event(xcb))) {
-      if (XCB_EVENT_RESPONSE_TYPE(ev) == type) tev = ev;
+      if (XCB_EVENT_RESPONSE_TYPE(ev) == type) return ev;
       else free(ev);
    }
-   return tev;
+   return NULL;
 }
 
 /* timed blocking X single event wait */
@@ -818,16 +814,17 @@ static xcb_generic_event_t* _xcb_wait_for_single_event(unsigned int seconds, uns
    struct timeval timeout;
    xcb_generic_event_t *ev;
 
-   if ((ev = _xcb_get_last_event(type)))
+   if ((ev = _xcb_get_first_event(type)))
       return ev;
-   xcb_flush(xcb);
 
-   timeout.tv_sec  = seconds; timeout.tv_usec = nanoseconds;
-   xfd = xcb_get_file_descriptor(xcb);
-   FD_ZERO(&fds); FD_SET(xfd, &fds);
-   if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
-      return NULL;
-   return _xcb_get_last_event(type);
+   do {
+      timeout.tv_sec  = seconds; timeout.tv_usec = nanoseconds;
+      xfd = xcb_get_file_descriptor(xcb);
+      FD_ZERO(&fds); FD_SET(xfd, &fds);
+      if ((ret = select(xfd+1, &fds, 0, 0, &timeout)) == -1)
+         return NULL;
+   } while (!(ev = _xcb_get_first_event(type)));
+   return ev;
 }
 
 /* timed blockin X event wait */
@@ -839,7 +836,6 @@ static xcb_generic_event_t* _xcb_wait_for_event(unsigned int seconds, unsigned i
 
    if ((ev = xcb_poll_for_event(xcb)))
       return ev;
-   xcb_flush(xcb);
 
    timeout.tv_sec  = seconds; timeout.tv_usec = nanoseconds;
    xfd = xcb_get_file_descriptor(xcb);
@@ -1026,11 +1022,10 @@ static void init_window(void) {
 }
 
 /* handle incr transfer */
-static void get_incr(xcb_selection_notify_event_t *e) {
-   xcb_generic_event_t *_ev;
+static void* get_incr(xcb_selection_notify_event_t *e, size_t *inlen) {
    xcb_property_notify_event_t *ev = NULL;
    xcb_get_property_reply_t *reply = NULL;
-   unsigned char *data = NULL, *tmp;
+   void *data = NULL, *tmp;
    size_t len = 0;
    specialclip *s;
    clipdata *c;
@@ -1038,66 +1033,49 @@ static void get_incr(xcb_selection_notify_event_t *e) {
    OUT("WAIT FOR INCR!");
    xcb_change_window_attributes_checked(xcb, e->requestor, XCB_CW_EVENT_MASK, &(unsigned int){XCB_EVENT_MASK_PROPERTY_CHANGE});
    xcb_delete_property(xcb, e->requestor, e->property);
+   xcb_flush(xcb);
 
-   while ((_ev = _xcb_wait_for_event(xcb_timeout_incr, 0))) {
-      if (XCB_EVENT_RESPONSE_TYPE(_ev) != XCB_PROPERTY_NOTIFY) continue;
-      ev = (xcb_property_notify_event_t*)_ev;
-      if (ev->state != XCB_PROPERTY_NEW_VALUE) continue;
-      reply = xcb_get_property_reply(xcb,
-            xcb_get_property(xcb, 0, e->requestor, e->property, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT_MAX), NULL);
-      if (!reply || !reply->length) {
-         if (!reply) goto out_of_memory;
+   while ((ev = (xcb_property_notify_event_t*)_xcb_wait_for_single_event(xcb_timeout_incr, 0, XCB_PROPERTY_NOTIFY))) {
+      if (ev->state != XCB_PROPERTY_NEW_VALUE) { free(ev); continue; }
+      reply = xcb_get_property_reply(xcb, xcb_get_property(xcb, 0, e->requestor, e->property,
+               XCB_GET_PROPERTY_TYPE_ANY, 0, UINT_MAX), NULL);
+      if (!reply || !reply->value_len) {
          OUT("INCR end");
-         free(reply);
+         if (reply) free(reply);
+         free(ev);
          break;
       }
-      OUT("\4Got \3%u bytes [%d]", reply->length, reply->format);
-      if (reply->format != 8) {
-         ERR("\1INCR in wront format");
-         free(reply);
-         break;
-      }
+      OUT("\4Got \3%u bytes [%d]", reply->value_len, reply->format);
       if (!data) {
-         if (!(data = malloc(reply->length+1)))
+         if (!(data = malloc(reply->value_len+1)))
             goto out_of_memory;
       } else {
-         if (data && (tmp = realloc(data, reply->length+len+1)))
+         if (data && (tmp = realloc(data, reply->value_len+len+1)))
             data = tmp;
          else if (data) goto out_of_memory;
       }
-      memcpy(data+len, xcb_get_property_value(reply), reply->length);
-      len += reply->length;
+      memcpy(data+len, xcb_get_property_value(reply), reply->value_len);
+      len += reply->value_len;
       free(reply); free(ev);
       xcb_delete_property(xcb, e->requestor, e->property);
+      xcb_flush(xcb);
    }
 
    /* store */
+   if (data) memset(data+len, 0, 1);
    OUT("\4Finished with \3%zu bytes", len);
-   if (data && (c = we_handle_selection(e->selection))) {
-      data[len] = 0;
-      if ((s = we_handle_special_selection(e->target))) {
-         set_special_selection_data(s, data, len); /* doesn't copy */
-         if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
-            set_clipboard_own(c);
-      } else if (e->target == atoms[UTF8_STRING] ||
-                 e->target == atoms[STRING] ||
-                 e->target == atoms[TEXT]) {
-         set_clipboard_data(c, data, len); /* this copies */
-         c->hash = hashb(c->data, c->size);
-         if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
-            set_clipboard_own(c);
-         free(data);
-      } else free(data);
-   } else if (data) free(data);
-
+   if (inlen) *inlen = len;
    xcb_delete_property(xcb, e->requestor, e->property);
-   return;
+   xcb_change_window_attributes_checked(xcb, e->requestor, XCB_CW_EVENT_MASK, &(unsigned int){0});
+   xcb_flush(xcb);
+   return data;
 
 out_of_memory:
    ERR("\1Out of memory for INCR transfer!");
    if (reply) free(reply);
    if (data)  free(data);
    if (ev)    free(ev);
+   return NULL;
 }
 
 /* fetch selection from selection notify event */
@@ -1107,41 +1085,127 @@ static char* fetch_xsel(xcb_window_t win, xcb_atom_t property, xcb_atom_t type, 
 
    if (!property) return NULL;
    if (!(xsel = xcb_get_property_reply(xcb, xcb_get_property_unchecked(xcb, 0,
-            win, property, type, 0, UINT32_MAX), 0)))
+            win, property, type, 0, UINT_MAX), 0)))
       return NULL;
    data = xcb_get_property_value(xsel);
-   if (!(*len = xcb_get_property_value_length(xsel)))
+   if (!(*len = xcb_get_property_value_length(xsel))) {
+      free(xsel);
       return NULL;
-   if (!(string = malloc(*len+1))) return NULL;
+   }
+   if (!(string = malloc(*len+1))) {
+      free(xsel);
+      return NULL;
+   }
    memcpy(string, data, *len); string[*len] = 0; free(xsel);
    xcb_delete_property(xcb, win, property);
    return string;
 }
 
-/* request selection from X */
-static char* get_xsel(xcb_atom_t selection, xcb_atom_t type, size_t *len) {
-   xcb_generic_event_t *ev = NULL; char *string = NULL;
-   xcb_selection_notify_event_t *e;
+typedef struct incrtransfer {
+   xcb_window_t requestor;
+   xcb_atom_t property;
+   xcb_atom_t selection;
+   unsigned int time;
+   xcb_atom_t target;
+   int format;
+   void *data;
+   size_t size;
+   size_t offset;
+   size_t max_size;
+   size_t chunk;
+   struct incrtransfer *next;
+} incrtransfer;
 
-   OUT("\3Requesting selection from X");
-   xcb_convert_selection(xcb, xcbw, selection,
-         type, atoms[XSEL_DATA], XCB_CURRENT_TIME);
+static incrtransfer *transfers = NULL;
 
-   while ((ev = _xcb_wait_for_single_event(xcb_timeout_xsel_s, xcb_timeout_xsel_ns, XCB_SELECTION_NOTIFY))) {
-      e = (xcb_selection_notify_event_t*)ev;
-      xcb_change_window_attributes_checked(xcb, e->requestor, XCB_CW_EVENT_MASK,
-            &(unsigned int){XCB_EVENT_MASK_PROPERTY_CHANGE});
-      string = fetch_xsel(e->requestor, e->property, e->target, len);
-      free(ev);
+static void add_incr(incrtransfer *incr) {
+   incrtransfer *i;
+   incr->next = NULL;
+   for (i = transfers; i && i->next; i = i->next);
+   if (!i) i = transfers = malloc(sizeof(incrtransfer));
+   else i = i->next = malloc(sizeof(incrtransfer));
+   if (!i) return;
+   memcpy(i, incr, sizeof(incrtransfer));
+}
+
+static void free_incr(incrtransfer *incr) {
+   incrtransfer *i;
+   for (i = transfers; i && i->next != i; i = i->next);
+   if (!i) transfers = incr->next;
+   else i->next = incr->next;
+   free(incr);
+}
+
+static void free_incrs(void) {
+   incrtransfer *i, *n;
+   for (i = transfers; i; i = n) {
+      n = i->next;
+      free(i);
+   }
+}
+
+static incrtransfer* find_incr(xcb_atom_t atom) {
+   incrtransfer *i;
+   for (i = transfers; i && i->property != atom; i = i->next);
+   return i;
+}
+
+static void complete_incr(incrtransfer *incr) {
+   xcb_selection_notify_event_t ev;
+
+   ev.response_type = XCB_SELECTION_NOTIFY;
+   ev.requestor = incr->requestor;
+   ev.selection = incr->selection;
+   ev.time      = incr->time;
+   ev.target    = incr->target;
+   ev.property  = incr->offset==incr->size?incr->property:XCB_NONE;
+
+   xcb_send_event(xcb, 0, ev.requestor, XCB_EVENT_MASK_NO_EVENT, (char*)&ev);
+   xcb_change_window_attributes_checked(xcb, ev.requestor, XCB_CW_EVENT_MASK, &(unsigned int){0});
+   xcb_flush(xcb); free_incr(incr);
+}
+
+/* xcb_change_property wrapper with INCR handling */
+static int _xcb_change_property(xcb_connection_t *xcb, xcb_selection_notify_event_t *ev,
+      uint8_t mode, xcb_atom_t target, int format, size_t size, void *data) {
+   unsigned int bytes;
+
+   bytes = size*format/8;
+   OUT("check %zu bytes", bytes);
+   if (bytes < MAX_INCR) {
+      xcb_change_property(xcb, mode, ev->requestor, ev->property, target, format, size, data);
+      return 0;
    }
 
-   if (!string) OUT("\3Failed to get selection from X");
-   return string;
+   /* INCR transfer */
+   ev->target = atoms[INCR];
+   xcb_change_window_attributes_checked(xcb, ev->requestor, XCB_CW_EVENT_MASK, &(unsigned int){XCB_EVENT_MASK_PROPERTY_CHANGE});
+   xcb_change_property(xcb, mode, ev->requestor, ev->property, atoms[INCR], 32, 1, (unsigned char*)&bytes);
+   xcb_send_event(xcb, 0, ev->requestor, XCB_EVENT_MASK_NO_EVENT, (char*)ev);
+   xcb_flush(xcb);
+
+   incrtransfer incr;
+   incr.requestor = ev->requestor;
+   incr.property  = ev->property;
+   incr.selection = ev->selection;
+   incr.time      = ev->time;
+   incr.target    = target;
+   incr.format    = format;
+   incr.data      = data;
+   incr.size      = size;
+   incr.offset    = 0;
+   incr.max_size  = MAX_INCR*8/format;
+   incr.chunk = MIN(incr.max_size, incr.size-incr.offset);
+   add_incr(&incr);
+
+   OUT("\4INCR transfer! (%zu/%zu)", incr.size, incr.max_size);
+   return 1;
 }
 
 /* send X selection */
 static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t selection,
       xcb_atom_t target, xcb_time_t time, size_t size, void *data) {
+   int incr = 0;
    specialclip *s;
    xcb_selection_notify_event_t ev;
    ev.response_type = XCB_SELECTION_NOTIFY;
@@ -1161,25 +1225,16 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
 
    if (target == atoms[UTF8_STRING]) {
       OUT("UTF8 request");
-      xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-            atoms[UTF8_STRING], 8, size, data);
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[UTF8_STRING], 8, size, data);
    } else if (target == atoms[STRING] || target == atoms[TEXT]) {
       OUT("String || Text request");
-      xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-            atoms[STRING], 8, size, data);
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[STRING], 8, size, data);
    } else if (target == atoms[TIMESTAMP]) {
       OUT("Timestamp request");
-      xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-            atoms[INTEGER], 32, 1, (unsigned char*)&ev.time);
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[INTEGER], 32, 1, (unsigned char*)&ev.time);
    } else if (target == atoms[TARGETS]) {
       OUT("Targets request");
-      xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-            atoms[ATOM], 32, LENGTH(satoms), satoms);
-#if 1
-   } else if (target == atoms[INCR]) {
-      OUT("INCR");
-      ev.property = XCB_NONE;
-#endif
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, LENGTH(satoms), satoms);
 #if 0
    } else if (target == atoms[MULTIPLE]) {
       OUT("Multiple");
@@ -1188,42 +1243,21 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    } else {
       if ((s = we_handle_special_selection(target))) {
          OUT("Special data request from %s", s->name);
-         xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, ev.requestor, ev.property,
-               s->sel, 8, (size = s->size), (data = s->data));
+         incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8, (size = s->size), (data = s->data));
       } else {
          OUT("Crap property");
          ev.property = XCB_NONE;
       }
    }
 
-   OUT("SENT: %s [%zu]", (char*)data, size);
-   xcb_send_event(xcb, 0, ev.requestor, XCB_EVENT_MASK_NO_EVENT, (char*)&ev);
-   xcb_flush(xcb);
-}
-
-/* set X selection (blocks until clipboard is taken) */
-static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
-   xcb_generic_event_t *ev = NULL;
-   xcb_selection_clear_event_t *sc;
-   xcb_selection_request_event_t *sr;
-
-   OUT("\3Setting selection to X and blocking until it's taken");
-   if (!set_own(selection)) return 0;
-   while ((ev = xcb_wait_for_event(xcb))) {
-      if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
-         sc = (xcb_selection_clear_event_t*)ev;
-         OUT("xcb: clear request");
-         if (sc->selection == selection) break;
-      } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST) {
-         sr = (xcb_selection_request_event_t*)ev;
-         OUT("xcb: selection request");
-         send_xsel(sr->requestor, sr->property, sr->selection,
-               sr->target, sr->time, len, buffer);
-      }
-      free(ev);
+   if (!incr) {
+      if (ev.target == atoms[UTF8_STRING] ||
+          ev.target == atoms[STRING]      ||
+          ev.target == atoms[TEXT])
+         OUT("SENT: %s [%zu]", (char*)data, size);
+      xcb_send_event(xcb, 0, ev.requestor, XCB_EVENT_MASK_NO_EVENT, (char*)&ev);
+      xcb_flush(xcb);
    }
-   if (ev) free(ev);
-   return 1;
 }
 
 /* handle selection request */
@@ -1253,55 +1287,13 @@ static unsigned int hashb(char *b, size_t len) {
    hash += (hash << 3);
    hash ^= (hash >> 11);
    hash += (hash << 15);
-
-#if 0
-   OUT("hashed: %s", b);
-   OUT("size: %zu", len);
-   OUT("hash: %u", hash);
-#endif
    return hash;
 }
 
-/* handle copying */
-static void handle_copy(clipdata *c) {
-   char *buffer = NULL; size_t len = 0;
-   unsigned int hash = 0, changed, i, got_special;
-   static unsigned int fail_xsel = 0;
-
-   if (c->owner == XCB_NONE &&
-      (c->owner = get_owner_for_selection(c->sel)) == XCB_NONE) {
-      set_clipboard_own(c);
-      return;
-   }
-
-   if (c->has_special) {
-      /* check if data on special clipboards */
-      for (i = 0, got_special = 0; i != LENGTH(sclip); ++i) {
-         if (!(buffer = get_xsel(c->sel, sclip[i].sel, &len)) || !len) {
-            if (buffer) free(buffer);
-            continue;
-         }
-         got_special = 1;
-         OUT("Got special data from %s", sclip[i].name);
-         set_special_selection_data(&sclip[i], buffer, len);
-      }
-
-      /* should own immediatly? */
-      if (got_special) {
-         if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
-            set_clipboard_own(c);
-      }
-   }
-
-   if (!(buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len)) || !len) {
-      if (++fail_xsel==2) {
-         set_clipboard_own(c);
-         fail_xsel = 0;
-      }
-      if (buffer) free(buffer);
-      return;
-   }
-   fail_xsel = 0;
+/* handle clip */
+static void handle_clip(clipdata *c, void *buffer, size_t len) {
+   unsigned int hash, changed;
+   if (!buffer || !len) return;
 
    /* can we copy the data immediatly? or do we need to
     * let go can wait until copy is done.
@@ -1311,18 +1303,14 @@ static void handle_copy(clipdata *c) {
    if (!strcmp(c->name, "PRIMARY")) {
       if ((hash = hashb(buffer, len)) != c->ohash) {
          OUT("\4Start of %s copy", c->name);
-         c->ohash = hash; free(buffer); return;
+         c->ohash = hash; return;
       } else {
-         if (c->hash == c->ohash) {
-            free(buffer); return;
-         }
+         if (c->hash == c->ohash) return;
          OUT("\4End of %s copy", c->name);
       }
    } else {
       OUT("\4Got data from %s", c->name);
       if (c->ohash == (hash = hashb(buffer, len))) {
-         free(buffer);
-
          /* should own immediatly? */
          if (c->flags & CLIPBOARD_OWN_IMMEDIATLY) {
             set_clipboard_own(c);
@@ -1334,7 +1322,7 @@ static void handle_copy(clipdata *c) {
    }
 
    changed = set_clipboard_data(c, buffer, len);
-   free(buffer); c->hash = hashb(c->data, c->size);
+   c->hash = hashb(c->data, c->size);
    if (!changed || (c->hash == hash && c->ohash != c->hash)) {
       /* should own immediatly? */
       if (c->flags & CLIPBOARD_OWN_IMMEDIATLY) {
@@ -1354,27 +1342,137 @@ static void handle_copy(clipdata *c) {
       set_clipboard_own(c);
 }
 
-/* handle clear request */
-static void handle_clear(xcb_selection_clear_event_t *e) {
-   clipdata *c;
-   OUT("\3xcb: clear request");
-   if (!(c = we_handle_selection(e->selection)))
-      return;
+/* handle special copy */
+static void handle_special_copy(clipdata *c, specialclip *s, void *buffer, size_t len) {
+   if (!buffer || !len) return;
 
-   /* don't do it */
-   if (c->flags == CLIPBOARD_OWN_IMMEDIATLY) {
+   OUT("Got special data from %s", s->name);
+   set_special_selection_data(s, buffer, len);
+
+   if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
+      set_clipboard_own(c);
+}
+
+/* handle copying */
+static void handle_copy(clipdata *c, void *buffer, size_t len) {
+   if (!buffer) return;
+   else if (!len) {
+      free(buffer);
+      return;
+   }
+
+   handle_clip(c, buffer, len);
+}
+
+/* request copy */
+static void request_copy(clipdata *c) {
+   unsigned int i = 0;
+
+   if (c->owner == XCB_NONE &&
+      (c->owner = get_owner_for_selection(c->sel)) == XCB_NONE) {
       set_clipboard_own(c);
       return;
    }
 
-   /* don't let go of other clipboards */
+   xcb_convert_selection(xcb, xcbw, c->sel,
+         atoms[UTF8_STRING], atoms[XSEL_DATA], XCB_CURRENT_TIME);
+
+   if (!c->has_special)
+      return;
+
+   for (i = 0; i != LENGTH(sclip); ++i)
+      xcb_convert_selection(xcb, xcbw, c->sel,
+            sclip[i].sel, atoms[XSEL_DATA], XCB_CURRENT_TIME);
+}
+
+/* handle clear request */
+static void handle_clear(xcb_selection_clear_event_t *e) {
+   clipdata *c;
+
+   OUT("\3xcb: clear request");
+   if (!(c = we_handle_selection(e->selection)))
+      return;
+
+#if 0
+   /* own immeadiatly back */
+   if (c->flags & CLIPBOARD_OWN_IMMEDIATLY) {
+      set_clipboard_own(c);
+      return;
+   }
+#endif
+
+   OUT("\1Clearing clipboard %s", c->name);
    c->owner = XCB_NONE;
+}
+
+/* handle selection notify */
+static void handle_notify(xcb_selection_notify_event_t *e) {
+   xcb_generic_event_t *ev = NULL;
+   xcb_get_property_reply_t *reply;
+   void *string = NULL; size_t len = 0;
+   clipdata *c; specialclip *s;
+
+   if (!(c = we_handle_selection(e->selection)))
+      return;
+
+   if (!(reply = xcb_get_property_reply(xcb, xcb_get_property(xcb, 0, e->requestor, e->property,
+            XCB_GET_PROPERTY_TYPE_ANY, 0, UINT_MAX), NULL))) {
+      set_clipboard_own(c);
+      return;
+   }
+
+   if (reply->type != atoms[INCR]) { /* NON INCR */
+      string = fetch_xsel(e->requestor, e->property, e->target, &len);
+      if ((s = we_handle_special_selection(e->target))) {
+         handle_special_copy(c, s, string, len); /* string is not copied */
+         string = NULL; /* don't free */
+      } else {
+         handle_copy(c, string, len); /* string is copied */
+      }
+   } else { /* INCR */
+      string = get_incr(e, &len);
+      if ((s = we_handle_special_selection(e->target))) {
+         handle_special_copy(c, s, string, len); /* string is not copied */
+         string = NULL; /* don't free */
+      } else {
+         handle_copy(c, string, len); /* string is copied */
+      }
+   }
+
+   free(reply);
+   if (string) free(string);
 }
 
 /* handle property notify */
 static void handle_property(xcb_property_notify_event_t *e) {
+   incrtransfer *incr;
    if (e->state != XCB_PROPERTY_DELETE) return;
-   OUT("\1PROPERTY DELETE");
+
+   if (!(incr = find_incr(e->atom)))
+      return;
+
+   if (!incr->offset) {
+      OUT("\4Writing first INCR chunk (%zu/%zu)", incr->chunk, incr->size);
+      xcb_change_property(xcb, XCB_PROP_MODE_REPLACE, incr->requestor, incr->property, incr->target,
+            incr->format, incr->chunk, incr->data);
+      incr->offset += incr->chunk;
+      xcb_flush(xcb);
+      return;
+   }
+
+   incr->chunk = MIN(incr->max_size, incr->size-incr->offset);
+   if (!incr->chunk) {
+      OUT("\4Ending INCR transfer (%zu)", incr->offset);
+      xcb_change_property(xcb, XCB_PROP_MODE_APPEND, incr->requestor, incr->property, incr->target,
+            incr->format, 0, NULL);
+      complete_incr(incr);
+   } else {
+      OUT("\4Transfering \3%zu bytes (%zu/%zu)", incr->chunk, incr->offset, incr->size);
+      xcb_change_property(xcb, XCB_PROP_MODE_APPEND, incr->requestor, incr->property, incr->target,
+            incr->format, incr->chunk, incr->data+incr->offset);
+      incr->offset += incr->chunk;
+      xcb_flush(xcb);
+   }
 }
 
 /* check if one instance is already running */
@@ -1443,6 +1541,66 @@ no_arg:
 fail:
    if (data) free(data);
    return NULL;
+}
+
+/* wait for X selection */
+static char* get_xsel(xcb_atom_t selection, xcb_atom_t type, size_t *len) {
+   xcb_selection_notify_event_t *e;
+   xcb_get_property_reply_t *reply;
+   void *string = NULL; int incr = 0;
+
+   OUT("\3Requesting selection from X");
+   xcb_convert_selection(xcb, xcbw, selection, type, atoms[XSEL_DATA], XCB_CURRENT_TIME);
+   xcb_flush(xcb);
+
+   while ((e = (xcb_selection_notify_event_t*)_xcb_wait_for_single_event(
+               xcb_timeout_xsel_s, xcb_timeout_xsel_ns, XCB_SELECTION_NOTIFY))) {
+      if ((reply = xcb_get_property_reply(xcb, xcb_get_property(xcb, 0, e->requestor, e->property,
+               XCB_GET_PROPERTY_TYPE_ANY, 0, UINT_MAX), NULL))) {
+         if (reply->type != atoms[INCR])
+              string = fetch_xsel(e->requestor, e->property, e->target, len);
+         else string = get_incr(e, len);
+         free(reply);
+      }
+      free(e);
+      if (string) break;
+   }
+
+   if (!string) OUT("\3Failed to get selection from X");
+   return string;
+}
+
+/* set X selection (blocks until clipboard is taken) */
+static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
+   xcb_generic_event_t *ev = NULL;
+   xcb_selection_clear_event_t *sc;
+   xcb_selection_request_event_t *sr;
+
+   OUT("\3Setting selection to X and blocking until it's taken");
+   if (!set_own(selection)) return -1;
+   while ((ev = _xcb_wait_for_event(xcb_timeout_xsel_s, xcb_timeout_xsel_ns)) || 1) {
+      if (ev) {
+         if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
+            sc = (xcb_selection_clear_event_t*)ev;
+            OUT("xcb: clear request");
+            if (sc->selection == selection) break;
+         } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST) {
+            sr = (xcb_selection_request_event_t*)ev;
+            OUT("xcb: selection request");
+            if (sr->selection == selection &&
+                  (sr->target == atoms[UTF8_STRING] ||
+                   sr->target == atoms[TEXT]        ||
+                   sr->target == atoms[STRING]))
+               send_xsel(sr->requestor, sr->property, sr->selection,
+                     sr->target, sr->time, len, buffer);
+         } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY)
+            handle_property((xcb_property_notify_event_t*)ev);
+      }
+      if (!set_own(selection)) return -1;
+      if (ev) free(ev);
+   }
+   if (ev) free(ev);
+   return 1;
 }
 
 /* do clipboard synchorization requested from command line */
@@ -1518,20 +1676,20 @@ FUNC_ARG(arg_clipboard_sync) {
 }
 
 FUNC_ARG(arg_out) {
-   int o; char lsall = 1, *buffer; size_t len, i;
+   int o; char lsall = 1, *buffer; size_t len = 0, i;
 
    OUT("\4Getting from X selection");
    for (o = 0; o != LENGTH(clipboards); ++o)
       if (clipboards[o].selected) lsall = 0;
 
    for (o = 0; o != LENGTH(clipboards); ++o) {
-      if ((lsall || clipboards[o].selected) &&
-          (buffer = get_xsel(clipboards[o].sel, atoms[UTF8_STRING], &len))) {
-         if (len) {
+      if ((lsall || clipboards[o].selected)) {
+         buffer = get_xsel(clipboards[o].sel, atoms[UTF8_STRING], &len);
+         if (buffer && len) {
             for (i = 0; i != len; ++i)
                printf("%c", buffer[i]);
          }
-         free(buffer);
+         if (buffer) free(buffer);
       }
    }
    return 1;
@@ -1618,7 +1776,7 @@ FUNC_ARG(arg_query) {
 }
 
 FUNC_ARG(arg_binary) {
-   char *buffer; size_t i, len;
+   unsigned char *buffer; size_t i, len = 0;
    clipdata *c; specialclip *s;
 
    if (!(c = get_clipboard("CLIPBOARD")))
@@ -1626,13 +1784,13 @@ FUNC_ARG(arg_binary) {
    if (!(s = get_special_selection(argv[0])))
       goto no_selection;
 
-   if ((buffer = get_xsel(c->sel, s->sel, &len))) {
-      if (len) {
-         for (i = 0; i != len; ++i)
-            printf("%c", buffer[i]);
-      }
-      free(buffer);
+   buffer = get_xsel(c->sel, s->sel, &len);
+   if (buffer && len) {
+      for (i = 0; i != len; ++i)
+         printf("%c", buffer[i]);
    }
+   if (buffer && buffer != s->data)
+      free(buffer);
 
    return 1;
 no_clipboard:
@@ -1699,7 +1857,7 @@ static int handle_args(int argc, char **argv) {
 
    if (!skipusage) return usage(argv[0]);
    for (o = 0; o != LENGTH(clipargs); ++o)
-      if (clipargs[o].atarg) {
+      if (clipargs[o].atarg && (argc-clipargs[o].atarg) >= clipargs[o].argc) {
          if (!clipargs[o].lonefunc) dolonely = 0;
          ret = clipargs[o].func(argc-clipargs[o].atarg, argv+clipargs[o].atarg);
          if (ret == 0) return 0;
@@ -1726,7 +1884,8 @@ static void sigint(int sig) {
 /* lolis live here */
 int main(int argc, char **argv) {
    xcb_generic_event_t *ev = NULL;
-   unsigned int i = 0, doblock = 0; int skiploop = 0;
+   unsigned int c = 0, i = 0, doblock = 0, oldblock = 0, shouldblock = 0;
+   int skiploop = 0;
 
    /* cli defaults */
    xcb_timeout_xsel_s  = xcb_timeout_cli;
@@ -1754,14 +1913,16 @@ int main(int argc, char **argv) {
       xcb_timeout_xsel_ns = xcb_timeout_daemon;
    }
    while (!skiploop && RUN && !xcb_connection_has_error(xcb)) {
+      xcb_flush(xcb);
       if (doblock) ev = xcb_wait_for_event(xcb);
       while (doblock || (ev = _xcb_wait_for_event(0, xcb_timeout_loop))) {
          if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST)
             handle_request((xcb_selection_request_event_t*)ev);
-         else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR)
+         else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
             handle_clear((xcb_selection_clear_event_t*)ev);
-         else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_NOTIFY)
-            get_incr((xcb_selection_notify_event_t*)ev);
+            free(ev); break;
+         } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_NOTIFY)
+            handle_notify((xcb_selection_notify_event_t*)ev);
          else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY)
             handle_property((xcb_property_notify_event_t*)ev);
 #ifdef XCB_UTIL
@@ -1769,14 +1930,22 @@ int main(int argc, char **argv) {
 #else
          else OUT("\3xcb: \1unhandled event");
 #endif
-         free(ev); if (doblock) break;
+         free(ev);
+         if (doblock && !(ev = xcb_poll_for_event(xcb))) break;
       }
 
-      doblock = 1;
-      for (i = 0; i != LENGTH(clipboards); ++i) {
-         if (clipboards[i].owner == xcbw) continue;
-         handle_copy(&clipboards[i]); doblock = 0;
+      /* cycle clipboards */
+      if (++c == LENGTH(clipboards)) {
+         if (oldblock!=doblock)
+            OUT("%s", doblock?"NONBLOCK":"BLOCKING");
+         oldblock = doblock;
+         c = 0, shouldblock = 0, doblock = 0;
       }
+
+      if (clipboards[c].owner != xcbw)
+         request_copy(&clipboards[c]);
+      else if (++shouldblock == LENGTH(clipboards))
+         doblock = 1;
    }
 
    OUT("\1Stopping loliclip");
@@ -1785,8 +1954,10 @@ int main(int argc, char **argv) {
       if (clipboards[i].data) free(clipboards[i].data);
    }
    for (i = 0; i != LENGTH(sclip); ++i) {
-      if (sclip[i].data) free(sclip[i].data);
+      if (!sclip[i].share_binary && sclip[i].data) free(sclip[i].data);
    }
+   if (bclip.data) free(bclip.data);
+   free_incrs();
    xcb_disconnect(xcb);
    return EXIT_SUCCESS;
 

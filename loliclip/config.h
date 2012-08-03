@@ -7,6 +7,9 @@
 /* zlib compression level */
 #define ZLIB_LEVEL Z_BEST_SPEED
 
+/* maximum request size until we INCR send it */
+#define MAX_INCR UINT_MAX /* bytes */
+
 /*  zlib compression? */
 static char USE_ZLIB = 1;
 
@@ -80,6 +83,8 @@ static specialclip sclip[] = {
    REGISTER_SELECTION("image/x-ico", 1),
    REGISTER_SELECTION("image/x-win-bitmap", 1),
    REGISTER_SELECTION("image/jpeg", 1),
+   REGISTER_SELECTION("text/richtext", 0),
+   REGISTER_SELECTION("text/html", 0),
 };
 
 /* command sequence starter */
