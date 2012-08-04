@@ -10,10 +10,10 @@ def test_clipboard():
   targets = clipboard.wait_for_targets()
   print "Targets available:", ", ".join(map(str, targets))
   for target in targets:
-    print "Trying '%s'..." % str(target)
-    contents = clipboard.wait_for_contents(target)
-    if contents:
-      print contents.data
+    print "Special selection '%s'..." % str(target)
+    # contents = clipboard.wait_for_contents(target)
+    # if contents:
+    #  print contents.data
 
 def main():
   mainloop = glib.MainLoop()
