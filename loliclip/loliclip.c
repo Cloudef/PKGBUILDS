@@ -1243,7 +1243,12 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    } else {
       if ((s = we_handle_special_selection(target))) {
          OUT("Special data request from %s", s->name);
-         incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8, (size = s->size), (data = s->data));
+         if (s->size && s->data)
+            incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8, (size = s->size), (data = s->data));
+         else {
+            OUT("No data, report it!");
+            ev.property = XCB_NONE;
+         }
       } else {
          OUT("Crap property");
          ev.property = XCB_NONE;
