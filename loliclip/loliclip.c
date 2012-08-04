@@ -172,7 +172,7 @@ static xcb_screen_t *xcb_screen;
 
 /* timeout to xcb loop blocking, when we don't
  * own all the clipboards. */
-static int xcb_timeout_loop = 20000 * 10;
+static int xcb_timeout_loop = 5000 * 10;
 
 /* timeout to get xsel calls */
 static int xcb_timeout_xsel_s  = 0;
@@ -1411,7 +1411,7 @@ static void handle_copy(clipdata *c, void *buffer, size_t len) {
 
 /* check if we should own the clipboard */
 static void check_own(clipdata *c) {
-   OUT("Check own: %d", c->is_waiting);
+   if (c->is_waiting) OUT("Check own: %d", c->is_waiting);
    if (c->is_waiting) return;
    if (c->owner == XCB_NONE &&
       (c->owner = get_owner_for_selection(c->sel)) == XCB_NONE) {
@@ -1995,10 +1995,12 @@ int main(int argc, char **argv) {
 
       /* cycle clipboards */
       if (++c == LENGTH(clipboards)) {
-         for (c = 0; c != LENGTH(clipboards); ++c)
+         for (c = 0; c != LENGTH(clipboards); ++c) {
+            clipboards[c].is_waiting = 0;
             check_own(&clipboards[c]);
+         }
          if (oldblock!=doblock)
-            OUT("%s", doblock?"NONBLOCK":"BLOCKING");
+            OUT("%s", doblock?"BLOCKING":"NONBLOCK");
          oldblock = doblock;
          c = 0, shouldblock = 0, doblock = 0;
       }
