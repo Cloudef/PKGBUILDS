@@ -70,6 +70,21 @@ clipdata clipboards[] = {
  * If ctrl-c isn't working in some application as expected when loliclip
  * is running, it's most like that the target isn't registered here.
  *
+ * The data you get usually depends on application.
+ * But most of the time the data is prioritized by the below list,
+ * from top to bottom.
+ *
+ * On shared selections, the data is always replaced by the last
+ * selection of data that is marked as shared.
+ *
+ * For example, if you copied image/tiff data,
+ * and later image/jpeg, the image/tiff data would be replaced by,
+ * the image/jpeg data.
+ *
+ * If the same application offers data in multiple formats that are
+ * marked as shared in loliclip, then the data higher in the list
+ * is prioritized for shared clipboard.
+ *
  */
 static specialclip sclip[] = {
    REGISTER_SELECTION("text/uri-list", 0),
