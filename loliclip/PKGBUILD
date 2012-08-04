@@ -21,7 +21,7 @@ package() {
    install -Dm775 "$srcdir/lolictrl" "${pkgdir}/usr/bin/lolictrl"
    install -Dm755 "$srcdir/loliclip" "${pkgdir}/usr/bin/loliclip"
 }
-md5sums=('a2f4b6efd42173ac057b3f2cb524dcac'
+md5sums=('1103a25db55f7876f8abdb3fb260fbe3'
          'a7ac276f2b5743926990a7c0d36d8c56'
          '8159ea9a3df48b2224ab580a4d848a37')
 
