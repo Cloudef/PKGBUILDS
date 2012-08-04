@@ -1568,7 +1568,7 @@ static char* get_xsel(xcb_atom_t selection, xcb_atom_t type, size_t *len) {
          free(reply);
       }
       free(e);
-      if (string) break;
+      if (string || !reply) break;
    }
 
    if (!string) OUT("\3Failed to get selection from X");
