@@ -2,7 +2,7 @@
 # Lightweight clipboard manager for X
 
 pkgname=loliclip
-pkgver=1.8
+pkgver=1.9
 pkgrel=1
 pkgdesc='Lightweight clipboard manager for X'
 arch=('i686' 'x86_64')
@@ -21,8 +21,8 @@ package() {
    install -Dm775 "$srcdir/lolictrl" "${pkgdir}/usr/bin/lolictrl"
    install -Dm755 "$srcdir/loliclip" "${pkgdir}/usr/bin/loliclip"
 }
-md5sums=('a6d5791a547249b0fc37f895850e3b60'
-         '705e82ee689d315d5e3b935c7cd51ea6'
+md5sums=('a2f4b6efd42173ac057b3f2cb524dcac'
+         'a7ac276f2b5743926990a7c0d36d8c56'
          '8159ea9a3df48b2224ab580a4d848a37')
 
 # vim: set ts=8 sw=3 tw=0 :
