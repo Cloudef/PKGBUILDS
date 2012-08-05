@@ -1841,7 +1841,7 @@ FUNC_ARG(arg_binary) {
    if (!(s = get_special_selection(argv[0])))
       goto no_selection;
 
-   if ((buffer = get_data_as_argument(--argc, --argv, &len))) {
+   if ((buffer = get_data_as_argument(--argc, (argc?++argv:argv), &len))) {
       if (daemon(0, 0) != 0) {
          ERR("\1Failed to become a daemon");
          return -1;
