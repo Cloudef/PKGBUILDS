@@ -1225,7 +1225,7 @@ static int _xcb_change_property(xcb_connection_t *xcb, xcb_selection_notify_even
 static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t selection,
       xcb_atom_t target, xcb_time_t time, size_t size, void *data) {
    int incr = 0;
-   unsigned int i;
+   unsigned int i, hasdata;
    xcb_atom_t tatoms[LENGTH(satoms)];
    specialclip *s;
    xcb_selection_notify_event_t ev;
@@ -1255,12 +1255,13 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    } else if (target == atoms[TARGETS]) {
       OUT("Targets request");
       memcpy(tatoms, atoms, LENGTH(textsel)*sizeof(xcb_atom_t));
-      for (i = 0; i != LENGTH(sclip); ++i)
+      for (i = 0, hasdata = 0; i != LENGTH(sclip); ++i)
          if (sclip[i].size && sclip[i].data) {
             OUT("Hasdata: %s", sclip[i].name);
             tatoms[LENGTH(textsel)+i] = sclip[i].sel;
+            ++hasdata;
          }
-      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, LENGTH(textsel)+i, tatoms);
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, LENGTH(textsel)+hasdata, tatoms);
 #if 0
    } else if (target == atoms[MULTIPLE]) {
       OUT("Multiple");
