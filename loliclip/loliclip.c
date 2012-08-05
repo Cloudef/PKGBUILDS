@@ -1747,6 +1747,7 @@ FUNC_ARG(arg_out) {
          if (buffer && len) {
             for (i = 0; i != len; ++i)
                printf("%c", buffer[i]);
+            puts("");
          }
          if (buffer) free(buffer);
       }
