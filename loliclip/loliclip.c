@@ -1682,11 +1682,12 @@ static int do_sync(const char *selection, int argc, char **argv) {
          for (i = 0; i != len; ++i)
             printf("%c", buffer[i]);
       }
-#endif
+#else
       if (daemon(0, 0) != 0) {
          ERR("\1Failed to become a daemon");
          return -1;
       }
+#endif
       if (!(c = get_clipboard(selection)))
          goto fail;
       set_xsel(c->sel, XCB_NONE, buffer, len);
@@ -1843,10 +1844,12 @@ FUNC_ARG(arg_binary) {
       goto no_selection;
 
    if ((buffer = get_data_as_argument(--argc, (argc?++argv:argv), &len))) {
+#ifdef NDEBUG
       if (daemon(0, 0) != 0) {
          ERR("\1Failed to become a daemon");
          return -1;
       }
+#endif
       set_xsel(c->sel, s->sel, buffer, len);
       if (buffer && buffer != s->data)
          free(buffer);
