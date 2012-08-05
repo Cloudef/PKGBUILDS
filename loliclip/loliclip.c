@@ -1258,7 +1258,7 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
       for (i = 0, hasdata = 0; i != LENGTH(sclip); ++i)
          if (sclip[i].size && sclip[i].data) {
             OUT("Hasdata: %s", sclip[i].name);
-            tatoms[LENGTH(textsel)+i] = sclip[i].sel;
+            tatoms[LENGTH(textsel)+hasdata] = sclip[i].sel;
             ++hasdata;
          }
       incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, LENGTH(textsel)+hasdata, tatoms);
