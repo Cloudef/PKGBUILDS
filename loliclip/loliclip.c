@@ -137,7 +137,6 @@ REGISTER_ARG(arg_secondary);
 REGISTER_ARG(arg_secondary_sync);
 REGISTER_ARG(arg_clipboard);
 REGISTER_ARG(arg_clipboard_sync);
-REGISTER_ARG(arg_out);
 REGISTER_ARG(arg_get);
 REGISTER_ARG(arg_list);
 REGISTER_ARG(arg_dmenu);
@@ -152,7 +151,6 @@ static cliparg clipargs[] = {
    { 0, 'p', "primary",    0, arg_primary,   arg_primary_sync,    "Operate on PRIMARY." },
    { 0, 's', "secondary",  0, arg_secondary, arg_secondary_sync,  "Operate on SECONDARY." },
    { 0, 'c', "clipboard",  0, arg_clipboard, arg_clipboard_sync,  "Operate on CLIPBOARD." },
-   { 0, 'o', "out",        0, arg_out,       NULL,                "\tGet clip from selection (not history)." },
    { 0, 'g', "get",        0, arg_get,       NULL,                "\tGet clip by index or hash form history." },
    { 0, 'l', "list",       0, arg_list,      NULL,                "\tLists clips from history." },
    { 0, 'm', "dmenu",      0, arg_dmenu,     NULL,                "\tDmenu friendly listing." },
@@ -949,7 +947,6 @@ static void sync_clip(clipdata *c) {
    if (!c->sync || !strcmp(c->name, c->sync) || !(s = get_clipboard(c->sync)))
      return;
 
-
    s->should_own = 1;
    set_clipboard_data(s, (char*)c->data, c->size);
    OUT("Synced from %s to %s", c->name, c->sync);
@@ -1238,7 +1235,6 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    ev.selection   = selection;
    ev.time        = time;
    ev.property    = property;
-
 
    if (!ev.property) ev.property = ev.target;
    if (!xcb_timestamp) xcb_timestamp = time;
@@ -1563,6 +1559,10 @@ static char* get_data_as_argument(int argc, char **argv, size_t *len) {
    char buffer[1024], *data = NULL, *tmp;
    size_t size = 0, read; int i; *len = 0;
 
+   /* 100% sure we are terminal */
+   if (!argc && isatty(fileno(stdin)))
+      return NULL;
+
    if (!argc) {
       while (fdcheck(fileno(stdin)) &&
             (read = fread(buffer, 1, sizeof(buffer), stdin))) {
@@ -1630,13 +1630,17 @@ static char* get_xsel(xcb_atom_t selection, xcb_atom_t type, size_t *len) {
 }
 
 /* set X selection (blocks until clipboard is taken) */
-static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
+static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_t len) {
+   specialclip *s;
    xcb_generic_event_t *ev = NULL;
    xcb_selection_clear_event_t *sc;
    xcb_selection_request_event_t *sr;
 
-   OUT("\3Setting selection to X and blocking until it's taken");
    if (!set_own(selection)) return -1;
+   if (target != XCB_NONE && (s = we_handle_special_selection(target)))
+      set_special_selection_data(s, buffer, len);
+
+   OUT("\3Setting selection to X and blocking until it's taken");
    while ((ev = _xcb_wait_for_event(xcb_timeout_xsel_s, xcb_timeout_xsel_ns)) || 1) {
       if (ev) {
          if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
@@ -1646,31 +1650,36 @@ static int set_xsel(xcb_atom_t selection, void *buffer, size_t len) {
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST) {
             sr = (xcb_selection_request_event_t*)ev;
             OUT("xcb: selection request");
-            if (sr->selection == selection &&
+            if (sr->selection == selection) {
+               if (target == XCB_NONE &&
                   (sr->target == atoms[UTF8_STRING] ||
-                   sr->target == atoms[TEXT]        ||
-                   sr->target == atoms[STRING]))
-               send_xsel(sr->requestor, sr->property, sr->selection,
-                     sr->target, sr->time, len, buffer);
+                   sr->target == atoms[STRING]      ||
+                   sr->target == atoms[TEXT])       ||
+                   sr->target == target             ||
+                   sr->target == atoms[TARGETS])
+                  send_xsel(sr->requestor, sr->property, sr->selection,
+                        sr->target, sr->time, len, buffer);
+            }
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY)
             handle_property((xcb_property_notify_event_t*)ev);
       }
-      if (!set_own(selection)) return -1;
       if (ev) free(ev);
+      if (!set_own(selection)) return -1;
    }
+
    if (ev) free(ev);
    return 1;
 }
 
 /* do clipboard synchorization requested from command line */
 static int do_sync(const char *selection, int argc, char **argv) {
-   char *data; size_t len, i; clipdata *c;
-   OUT("\4Sync %s", selection);
-   if ((data = get_data_as_argument(argc, argv, &len))) {
+   char *buffer; size_t len, i; clipdata *c;
+   if ((buffer = get_data_as_argument(argc, argv, &len))) {
+      OUT("\4Sync %s", selection);
 #ifndef NDEBUG
       if (len) {
          for (i = 0; i != len; ++i)
-            printf("%c", data[i]);
+            printf("%c", buffer[i]);
       }
 #endif
       if (daemon(0, 0) != 0) {
@@ -1679,13 +1688,22 @@ static int do_sync(const char *selection, int argc, char **argv) {
       }
       if (!(c = get_clipboard(selection)))
          goto fail;
-      set_xsel(c->sel, data, len);
-      free(data);
+      set_xsel(c->sel, XCB_NONE, buffer, len);
+      free(buffer);
+   } else {
+      OUT("\4Get selection from %s", selection);
+      if (!(c = get_clipboard(selection)))
+         goto fail;
+      buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
+      if (buffer && len)
+         for (i = 0; i != len; ++i)
+            printf("%c", buffer[i]);
+      if (buffer) free(buffer);
    }
    return 1;
 fail:
    ERR("%s isn't a registered clipboard.", selection);
-   free(data);
+   free(buffer);
    return -1;
 }
 
@@ -1732,27 +1750,6 @@ FUNC_ARG(arg_clipboard) {
 
 FUNC_ARG(arg_clipboard_sync) {
    return do_sync("CLIPBOARD", argc, argv);
-}
-
-FUNC_ARG(arg_out) {
-   int o; char lsall = 1, *buffer; size_t len = 0, i;
-
-   OUT("\4Getting from X selection");
-   for (o = 0; o != LENGTH(clipboards); ++o)
-      if (clipboards[o].selected) lsall = 0;
-
-   for (o = 0; o != LENGTH(clipboards); ++o) {
-      if ((lsall || clipboards[o].selected)) {
-         buffer = get_xsel(clipboards[o].sel, atoms[UTF8_STRING], &len);
-         if (buffer && len) {
-            for (i = 0; i != len; ++i)
-               printf("%c", buffer[i]);
-            puts("");
-         }
-         if (buffer) free(buffer);
-      }
-   }
-   return 1;
 }
 
 FUNC_ARG(arg_get) {
@@ -1844,13 +1841,23 @@ FUNC_ARG(arg_binary) {
    if (!(s = get_special_selection(argv[0])))
       goto no_selection;
 
-   buffer = get_xsel(c->sel, s->sel, &len);
-   if (buffer && len) {
-      for (i = 0; i != len; ++i)
-         printf("%c", buffer[i]);
+   if ((buffer = get_data_as_argument(--argc, --argv, &len))) {
+      if (daemon(0, 0) != 0) {
+         ERR("\1Failed to become a daemon");
+         return -1;
+      }
+      set_xsel(c->sel, s->sel, buffer, len);
+      if (buffer && buffer != s->data)
+         free(buffer);
+   } else {
+      buffer = get_xsel(c->sel, s->sel, &len);
+      if (buffer && len) {
+         for (i = 0; i != len; ++i)
+            printf("%c", buffer[i]);
+      }
+      if (buffer && buffer != s->data)
+         free(buffer);
    }
-   if (buffer && buffer != s->data)
-      free(buffer);
 
    return 1;
 no_clipboard:
