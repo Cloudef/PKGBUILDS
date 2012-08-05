@@ -15,3 +15,11 @@ MISC:
    echo "asd" | loliclip -c # copy to clipboard
 
 Those commands will leave loliclip process open until someone else takes ownership of the particular selection (ex. XA_CLIPBOARD).
+
+Special selections are supported as well:
+   Get image from gimp:
+   loliclip -b image/png > image.png
+
+TODO:
+   Upload data to special selection from CLI
+   Remove clip by index from history from CLI
