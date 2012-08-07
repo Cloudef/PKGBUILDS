@@ -178,7 +178,7 @@ static xcb_screen_t *xcb_screen;
 
 /* timeout to xcb loop blocking, when we don't
  * own all the clipboards. */
-static int xcb_timeout_loop = 5000 * 10;
+static int xcb_timeout_loop = 25000 * 25;
 
 /* timeout to get xsel calls */
 static int xcb_timeout_xsel_s  = 0;
@@ -1289,13 +1289,22 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
       incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[INTEGER], 32, 1, (unsigned char*)&ev.time);
    } else if (target == atoms[TARGETS]) {
       OUT("Targets request");
-      memcpy(tatoms, satoms, LENGTH(textsel)*sizeof(xcb_atom_t));
-      for (i = 0, hasdata = 0; i != LENGTH(sclip); ++i)
+      for (i = 0, hasdata = 0; i != LENGTH(textsel); ++i) {
+         if (satoms[i] == atoms[UTF8_STRING] ||
+             satoms[i] == atoms[TEXT] ||
+             satoms[i] == atoms[STRING]) {
+            if (data && size) {
+               tatoms[hasdata++] = satoms[i];
+               OUT("Has text data");
+            }
+         } else tatoms[hasdata++] = satoms[i];
+      }
+      for (i = 0; i != LENGTH(sclip); ++i)
          if (sclip[i].size && sclip[i].data) {
             OUT("Hasdata: %s", sclip[i].name);
-            tatoms[LENGTH(textsel)+hasdata++] = sclip[i].sel;
+            tatoms[hasdata++] = sclip[i].sel;
          }
-      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, LENGTH(textsel)+hasdata, tatoms);
+      incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, hasdata, tatoms);
 #if 0
    } else if (target == atoms[MULTIPLE]) {
       OUT("Multiple");
@@ -1502,7 +1511,11 @@ static xcb_atom_t* get_targets(clipdata *c, xcb_get_property_reply_t *r, unsigne
 
 /* welcome to the pits of hell */
 static void ask_for_next_selection(clipdata *c) {
-   if (!c->targets || !c->cycle_target) return;
+   if (!c->targets || !c->cycle_target) {
+      c->is_waiting = 0;
+      return;
+   }
+
    OUT("ASK FOR 0x%x", c->targets[c->num_targets-c->cycle_target]);
    xcb_convert_selection(xcb, xcbw, c->sel,
          c->targets[c->num_targets-c->cycle_target],
@@ -1522,8 +1535,10 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
    if (!(reply = xcb_get_property_reply(xcb, xcb_get_property(xcb, 0, e->requestor, e->property,
             XCB_GET_PROPERTY_TYPE_ANY, 0, UINT_MAX), NULL))) {
       c->should_own = 1;
-      c->is_waiting = 0;
       OUT("\1Failed reply");
+      ask_for_next_selection(c);
+      if (c->is_waiting) --c->is_waiting;
+      xcb_flush(xcb);
       return;
    }
 
@@ -1533,9 +1548,13 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
             xcb_convert_selection(xcb, xcbw, c->sel,
                   c->targets[0], atoms[XSEL_DATA], XCB_CURRENT_TIME);
             OUT("Ask for: 0x%x", c->targets[0]);
-         c->is_waiting   = c->num_targets;
+         c->is_waiting   = c->num_targets+5;
          c->cycle_target = c->num_targets-1;
-         OUT("%d valid targets", c->num_targets);
+         OUT("%d valid targets for %s", c->num_targets, c->name);
+      } else {
+         OUT("No valid targets, own!");
+         c->is_waiting = 0;
+         c->should_own = 1;
       }
    } else if (reply->type == atoms[INTEGER]) {
       OUT("\1Timestamp not read");
@@ -1549,7 +1568,7 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
          handle_copy(c, string, len); /* string is copied */
       }
       ask_for_next_selection(c);
-      --c->is_waiting;
+      if (c->is_waiting) --c->is_waiting;
    } else { /* INCR */
       OUT("INCR [0x%x]", reply->type);
       string = get_incr(e, &len);
@@ -1560,7 +1579,7 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
          handle_copy(c, string, len); /* string is copied */
       }
       ask_for_next_selection(c);
-      --c->is_waiting;
+      if (c->is_waiting) --c->is_waiting;
    }
 
    free(reply);
@@ -1722,7 +1741,10 @@ static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_
             OUT("xcb: clear request");
             if (sc->selection == selection) {
                if (can_clear) break;
-               else set_own(selection);
+               else {
+                  set_own(selection);
+                  can_clear = 1;
+               }
             }
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST) {
             sr = (xcb_selection_request_event_t*)ev;
@@ -1732,8 +1754,10 @@ static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_
                      sr->target, sr->time, len, buffer);
                can_clear = 1;
             }
-         } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY)
+         } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY) {
             handle_property((xcb_property_notify_event_t*)ev);
+            can_clear = 0;
+         }
       }
       if (ev) free(ev);
       if (!set_own(selection)) return -1;
@@ -1782,12 +1806,14 @@ static int do_sync(const char *selection, int argc, char **argv) {
 
       /* broadcast */
       set_xsel(c->sel, XCB_NONE, buffer, len);
-      free(buffer);
+      if (buffer) free(buffer);
    } else {
       OUT("\4Get selection from %s", selection);
       if (!(c = get_clipboard(selection)))
          goto fail;
+
       buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
+      if (!buffer) buffer = get_xsel(c->sel, atoms[TEXT], &len);
       if (buffer && len)
          for (i = 0; i != len; ++i)
             printf("%c", buffer[i]);
@@ -1966,20 +1992,12 @@ FUNC_ARG(arg_binary) {
 
       /* set normal buffer */
       buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
-      if (buffer) {
-         OUT("\1Got normal UTF8 data");
-      } else {
-         if (!(buffer = malloc(2)))
-            return -1;
-         buffer[0] = ' ';
-         buffer[1] = 0;
-         len = 1;
-      }
+      if (!buffer) buffer = get_xsel(c->sel, atoms[TEXT], &len);
+      if (buffer) OUT("\1Got normal UTF8 data");
 
       /* broadcast */
       set_xsel(c->sel, s->sel, buffer, len);
-      if (buffer && buffer != s->data)
-         free(buffer);
+      if (buffer) free(buffer);
    } else {
       buffer = get_xsel(c->sel, s->sel, &len);
       if (buffer && len) {
@@ -2142,7 +2160,10 @@ int main(int argc, char **argv) {
             else {
                clear_special_selections(&clipboards[i]);
                request_copy(&clipboards[i]);
+               doblock = 0;
             }
+         } else if (clipboards[i].is_waiting) {
+            --clipboards[i].is_waiting;
             doblock = 0;
          }
       }
