@@ -971,7 +971,7 @@ static void sync_clip(clipdata *c) {
    if (!c->sync || !strcmp(c->name, c->sync) || !(s = get_clipboard(c->sync)))
      return;
 
-   s->should_own = 1;
+   set_clipboard_own(s);
    set_clipboard_data(s, (char*)c->data, c->size);
    OUT("\2Synced from %s to %s", c->name, c->sync);
 }
@@ -1458,7 +1458,7 @@ static void request_copy(clipdata *c) {
    xcb_convert_selection(xcb, xcbw, c->sel,
          atoms[TARGETS], atoms[XSEL_DATA], XCB_CURRENT_TIME);
    OUT("Targets request for %s", c->name);
-   c->is_waiting   = 1;
+   c->is_waiting   = 5;
    c->cycle_target = 0;
 }
 
@@ -2100,7 +2100,7 @@ static void sigint(int sig) {
 /* lolis live here */
 int main(int argc, char **argv) {
    xcb_generic_event_t *ev = NULL;
-   unsigned int i = 0, doblock = 0;
+   unsigned int i = 0, c = 0, doblock = 0;
    int skiploop = 0;
 
    /* cli defaults */
@@ -2136,7 +2136,9 @@ int main(int argc, char **argv) {
             handle_request((xcb_selection_request_event_t*)ev);
          else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
             handle_clear((xcb_selection_clear_event_t*)ev);
-            free(ev); break;
+            for (c = 0; c != LENGTH(clipboards) && clipboards[c].sel !=
+                  ((xcb_selection_clear_event_t*)ev)->selection; ++c);
+            --c; free(ev); break;
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_NOTIFY)
             handle_notify((xcb_selection_notify_event_t*)ev);
          else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY)
@@ -2151,30 +2153,29 @@ int main(int argc, char **argv) {
       }
 
       doblock = 1;
-      for (i = 0; i != LENGTH(clipboards); ++i) {
-         OUT("%s [%d]", clipboards[i].name, clipboards[i].is_waiting);
-         if (clipboards[i].owner != xcbw &&
-            !clipboards[i].is_waiting) {
-            OUT("JUST DO IT");
-            if (clipboards[i].should_own) set_clipboard_own(&clipboards[i]);
-            else {
-               clear_special_selections(&clipboards[i]);
-               request_copy(&clipboards[i]);
+      if (++c == LENGTH(clipboards)) {
+         OUT("JUST DO IT");
+         for (c = 0; c != LENGTH(clipboards); ++c) {
+            if (clipboards[c].should_own) set_clipboard_own(&clipboards[c]);
+            if (clipboards[c].is_waiting) {
+               --clipboards[c].is_waiting;
                doblock = 0;
             }
-         } else if (clipboards[i].is_waiting) {
-            --clipboards[i].is_waiting;
-            doblock = 0;
          }
+         c = 0;
+      } else doblock = 0;
+
+      OUT("%s [%d]", clipboards[c].name, clipboards[c].is_waiting);
+      if (!clipboards[c].is_waiting && clipboards[c].owner != xcbw) {
+         if (clipboards[c].should_own) set_clipboard_own(&clipboards[c]);
+         clear_special_selections(&clipboards[c]);
+         request_copy(&clipboards[c]);
+         xcb_flush(xcb);
       }
 
-      OUT("LOOP");
-
-      /* flush requests */
-      if (!doblock) {
-         OUT("FLUSH FINAL");
-         xcb_flush(xcb);
-      } else OUT("BLOCK");
+      if (doblock) {
+             OUT("BLOCK");
+      } else OUT("LOOP");
    }
 
    OUT("\1Stopping loliclip");
