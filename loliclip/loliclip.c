@@ -436,7 +436,6 @@ static int set_clipboard_data(clipdata *c, void *buffer, size_t len) {
 
    /* don't process binary */
    if (isbinary(buffer, len)) {
-      OUT("%s", buffer);
       OUT("Binary data! [%zu]", len);
       if (!(copy = malloc(len+1)))
          goto fail;
@@ -1450,13 +1449,8 @@ static void request_copy(clipdata *c) {
    xcb_convert_selection(xcb, xcbw, c->sel,
          atoms[TARGETS], atoms[XSEL_DATA], XCB_CURRENT_TIME);
    OUT("Targets request for %s", c->name);
-   c->is_waiting = 1;
-
+   c->is_waiting   = 1;
    c->cycle_target = 0;
-   if (c->targets) {
-      free(c->targets);
-      c->targets = NULL;
-   }
 }
 
 /* handle clear request */
@@ -1508,17 +1502,12 @@ static xcb_atom_t* get_targets(clipdata *c, xcb_get_property_reply_t *r, unsigne
 
 /* welcome to the pits of hell */
 static void ask_for_next_selection(clipdata *c) {
-   if (c->targets && c->cycle_target) {
-      OUT("ASK FOR 0x%x", c->targets[c->num_targets-c->cycle_target]);
-      xcb_convert_selection(xcb, xcbw, c->sel,
-            c->targets[c->num_targets-c->cycle_target],
-            atoms[XSEL_DATA], XCB_CURRENT_TIME);
-      --c->cycle_target;
-   } else if (!c->cycle_target && !c->targets && c->is_waiting) {
-      xcb_convert_selection(xcb, xcbw, c->sel, atoms[TARGETS],
-            atoms[XSEL_DATA], XCB_CURRENT_TIME);
-      OUT("ASK FOR TARGETS");
-   }
+   if (!c->targets || !c->cycle_target) return;
+   OUT("ASK FOR 0x%x", c->targets[c->num_targets-c->cycle_target]);
+   xcb_convert_selection(xcb, xcbw, c->sel,
+         c->targets[c->num_targets-c->cycle_target],
+         atoms[XSEL_DATA], XCB_CURRENT_TIME);
+   --c->cycle_target;
 }
 
 /* handle selection notify */
