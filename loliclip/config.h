@@ -15,11 +15,13 @@ static char USE_ZLIB = 1;
 
 /* clipboard post-process flags explained */
 enum {
-   CLIPBOARD_NONE = 0x0,
-   CLIPBOARD_TRIM_WHITESPACE = 0x1,                /* trim trailing and leading whitespace */
-   CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE = 0x2,   /* trim whitespace, if not multiline */
-   CLIPBOARD_TRIM_TRAILING_NEWLINE = 0x4,          /* trim trailing newline */
-   CLIPBOARD_OWN_IMMEDIATLY = 0x8                  /* own clipboard immediatly after new data */
+   CLIPBOARD_NONE = 0x00,
+   CLIPBOARD_TRIM_WHITESPACE = 0x01,                /* trim trailing and leading whitespace */
+   CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE = 0x02,   /* trim whitespace, if not multiline */
+   CLIPBOARD_TRIM_TRAILING_NEWLINE = 0x04,          /* trim trailing newline */
+   CLIPBOARD_OWN_IMMEDIATLY = 0x08,                 /* own clipboard immediatly after new data */
+   CLIPBOARD_CLEAR_SELECTIONS = 0x1                 /* clear all special selections on copy.
+                                                       this is how X applications expect the clipboard to behave */
 };
 
 /* registered clipboards and their settings
