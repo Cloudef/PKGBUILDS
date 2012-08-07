@@ -1549,7 +1549,7 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
                   c->targets[0], atoms[XSEL_DATA], XCB_CURRENT_TIME);
             OUT("Ask for: 0x%x", c->targets[0]);
          c->is_waiting   = c->num_targets+5;
-         c->cycle_target = c->num_targets-1;
+         c->cycle_target = c->num_targets;
          OUT("%d valid targets for %s", c->num_targets, c->name);
       } else {
          OUT("No valid targets, own!");
