@@ -2171,6 +2171,7 @@ int main(int argc, char **argv) {
    for (i = 0; i != LENGTH(clipboards); ++i) {
       if (clipboards[i].owner == xcbw) set_clipboard_clear(&clipboards[i]);
       if (clipboards[i].data) free(clipboards[i].data);
+      if (clipboards[i].targets) free(clipboards[i].targets);
    }
    for (i = 0; i != LENGTH(sclip); ++i) {
       if (!sclip[i].share_binary && sclip[i].data) free(sclip[i].data);
