@@ -151,6 +151,7 @@ REGISTER_ARG(arg_dmenu);
 REGISTER_ARG(arg_clear);
 REGISTER_ARG(arg_query);
 REGISTER_ARG(arg_binary);
+REGISTER_ARG(arg_wait);
 #undef REGISTER_ARG
 
 /* arguments are executed in order */
@@ -164,7 +165,8 @@ static cliparg clipargs[] = {
    { 0, 'm', "dmenu",      0, arg_dmenu,     NULL,                "\tDmenu friendly listing." },
    { 0, 'C', "clear",      0, arg_clear,     NULL,                "\tClears clipboard history." },
    { 0, 'q', "query",      0, arg_query,     NULL,                "\tQuery if loliclip daemon is running." },
-   { 0, 'b', "binary",     1, arg_binary,    NULL,                "Get binary data from clipboard." }
+   { 0, 'b', "binary",     1, arg_binary,    NULL,                "Get binary data from clipboard." },
+   { 0, 'w', "wait",       0, arg_wait,      NULL,                "Wait until selection is taken." }
 };
 
 /* xcb connection */
@@ -193,6 +195,9 @@ static int xcb_timeout_daemon = 5000;  /* in nanoseconds */
 
 /* X timestamp of first request */
 static xcb_time_t xcb_timestamp = 0;
+
+/* wait mode? */
+char WAIT_MODE = 0;
 
 /* output helpers */
 #define _D "\1-\2!\1-\5"
@@ -1637,7 +1642,7 @@ static int fdcheck(unsigned int fd) {
    struct timeval tm;
    FD_ZERO(&fdset);
    FD_SET(fd, &fdset);
-   tm.tv_sec   = 3;
+   tm.tv_sec   = 1;
    tm.tv_usec  = 0;
    return select(fd+1, &fdset, NULL, NULL, &tm)==1?1:0;
 }
@@ -1730,7 +1735,6 @@ static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_
    xcb_generic_event_t *ev = NULL;
    xcb_selection_clear_event_t *sc;
    xcb_selection_request_event_t *sr;
-   int can_clear = 0;
 
    OUT("\3Setting selection to X and blocking until it's taken");
    if (!set_own(selection)) return -1;
@@ -1739,24 +1743,16 @@ static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_
          if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_CLEAR) {
             sc = (xcb_selection_clear_event_t*)ev;
             OUT("xcb: clear request");
-            if (sc->selection == selection) {
-               if (can_clear) break;
-               else {
-                  set_own(selection);
-                  can_clear = 1;
-               }
-            }
+            if (sc->selection == selection) break;
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_SELECTION_REQUEST) {
             sr = (xcb_selection_request_event_t*)ev;
             OUT("xcb: selection request");
             if (sr->selection == selection) {
                send_xsel(sr->requestor, sr->property, sr->selection,
                      sr->target, sr->time, len, buffer);
-               can_clear = 1;
             }
          } else if (XCB_EVENT_RESPONSE_TYPE(ev) == XCB_PROPERTY_NOTIFY) {
             handle_property((xcb_property_notify_event_t*)ev);
-            can_clear = 0;
          }
       }
       if (ev) free(ev);
@@ -1780,7 +1776,7 @@ static int do_sync(const char *selection, int argc, char **argv) {
             printf("%c", buffer[i]);
       }
 #else
-      if (daemon(0, 0) != 0) {
+      if (!WAIT_MODE && daemon(0, 0) != 0) {
          ERR("\1Failed to become a daemon");
          return -1;
       }
@@ -1813,7 +1809,7 @@ static int do_sync(const char *selection, int argc, char **argv) {
          goto fail;
 
       buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
-      if (!buffer) buffer = get_xsel(c->sel, atoms[TEXT], &len);
+      if (!buffer) buffer = get_xsel(c->sel, atoms[STRING], &len);
       if (buffer && len)
          for (i = 0; i != len; ++i)
             printf("%c", buffer[i]);
@@ -1951,6 +1947,11 @@ FUNC_ARG(arg_query) {
    return 1;
 }
 
+FUNC_ARG(arg_wait) {
+   WAIT_MODE = 1;
+   return 1;
+}
+
 FUNC_ARG(arg_binary) {
    xcb_atom_t *targets;
    char *buffer; size_t i, len = 0, tlen = 0;
@@ -1963,7 +1964,7 @@ FUNC_ARG(arg_binary) {
 
    if ((buffer = get_data_as_argument(argc-1, (argc-1?++argv:argv), &len))) {
 #ifdef NDEBUG
-      if (daemon(0, 0) != 0) {
+      if (!WAIT_MODE && daemon(0, 0) != 0) {
          ERR("\1Failed to become a daemon");
          return -1;
       }
@@ -1992,7 +1993,7 @@ FUNC_ARG(arg_binary) {
 
       /* set normal buffer */
       buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
-      if (!buffer) buffer = get_xsel(c->sel, atoms[TEXT], &len);
+      if (!buffer) buffer = get_xsel(c->sel, atoms[STRING], &len);
       if (buffer) OUT("\1Got normal UTF8 data");
 
       /* broadcast */
@@ -2154,8 +2155,12 @@ int main(int argc, char **argv) {
 
       doblock = 1;
       if (++c == LENGTH(clipboards)) {
-         OUT("JUST DO IT");
+         OUT("Handle clipboard %s", clipboards[c].name);
          for (c = 0; c != LENGTH(clipboards); ++c) {
+               if (clipboards[c].owner == XCB_NONE &&
+                  (clipboards[c].owner = get_owner_for_selection(clipboards[c].sel)) == XCB_NONE)
+                  clipboards[c].should_own = 1;
+
             if (clipboards[c].should_own) set_clipboard_own(&clipboards[c]);
             if (clipboards[c].is_waiting) {
                --clipboards[c].is_waiting;
