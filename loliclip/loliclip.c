@@ -157,6 +157,7 @@ REGISTER_ARG(arg_wait);
 /* arguments are executed in order */
 static cliparg clipargs[] = {
    { 0, 'd', "daemon",     0, arg_daemon,    NULL,                "Run as daemon." },
+   { 0, 'w', "wait",       0, arg_wait,      arg_wait,            "\tWait until selection is taken." },
    { 0, 'p', "primary",    0, arg_primary,   arg_primary_sync,    "Operate on PRIMARY." },
    { 0, 's', "secondary",  0, arg_secondary, arg_secondary_sync,  "Operate on SECONDARY." },
    { 0, 'c', "clipboard",  0, arg_clipboard, arg_clipboard_sync,  "Operate on CLIPBOARD." },
@@ -165,8 +166,7 @@ static cliparg clipargs[] = {
    { 0, 'm', "dmenu",      0, arg_dmenu,     NULL,                "\tDmenu friendly listing." },
    { 0, 'C', "clear",      0, arg_clear,     NULL,                "\tClears clipboard history." },
    { 0, 'q', "query",      0, arg_query,     NULL,                "\tQuery if loliclip daemon is running." },
-   { 0, 'b', "binary",     1, arg_binary,    NULL,                "Get binary data from clipboard." },
-   { 0, 'w', "wait",       0, arg_wait,      NULL,                "Wait until selection is taken." }
+   { 0, 'b', "binary",     1, arg_binary,    NULL,                "Get binary data from clipboard." }
 };
 
 /* xcb connection */
@@ -1756,7 +1756,6 @@ static int set_xsel(xcb_atom_t selection, xcb_atom_t target, void *buffer, size_
          }
       }
       if (ev) free(ev);
-      if (!set_own(selection)) return -1;
    }
 
    if (ev) free(ev);
@@ -1949,6 +1948,7 @@ FUNC_ARG(arg_query) {
 
 FUNC_ARG(arg_wait) {
    WAIT_MODE = 1;
+   OUT("WAIT MODE");
    return 1;
 }
 

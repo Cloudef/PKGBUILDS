@@ -48,7 +48,7 @@ syncmode() {
       $DMENU -p "sync_to")"
    [[ -n "$synt" ]] || exit 1
    "$LOLICLIP" --${synf} | "$LOLICLIP" --${synt}
-   sleep 0.1
+   sleep 0.25
    "$LOLICLIP" --${synt}
    exit 0
 }
@@ -59,7 +59,7 @@ clipmode() {
       sed 's/^[^0-9]*\([^:]*\):.*/\1/g')"
    [[ -n "$id" ]] || exit 1
    echo "$id" | "$LOLICLIP" -g | "$LOLICLIP" --${CLIPBOARD}
-   sleep 0.1
+   sleep 0.25
    "$LOLICLIP" --${CLIPBOARD}
    exit 0
 }
@@ -67,7 +67,7 @@ clipmode() {
 # sync
 sync() {
    "$LOLICLIP" --$1 | "$LOLICLIP" --$2
-   sleep 0.1
+   sleep 0.25
    "$LOLICLIP" --$2
    exit 0;
 }
