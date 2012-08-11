@@ -14,6 +14,7 @@ source=('loliclip.c' 'config.h' 'lolictrl')
 
 # Debug build?
 DEBUG=0
+[[ $DEBUG -eq 1 ]] && options=(!strip)
 
 package() {
    [[ $DEBUG -eq 0 ]] || gcc -g              "$srcdir/loliclip.c" -lxcb -lz -o "$srcdir/loliclip"
