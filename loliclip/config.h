@@ -63,7 +63,8 @@ clipdata clipboards[] = {
  * arguments are following:
  * REGISTER_SELECTION(
  *    special selection name,
- *    shared binary data? (helps save ram, but selection is shared)
+ *    data index,
+ *    reset after new copy?
  * )
  *
  * I've included python script on the git repo that you can use
@@ -77,8 +78,8 @@ clipdata clipboards[] = {
  * But most of the time the data is prioritized by the below list,
  * from top to bottom.
  *
- * On shared selections, the data is always replaced by the last
- * selection of data that is marked as shared.
+ * The data index specifies on which slot the data will be stored,
+ * selections with same data slot replaces the old data.
  *
  * For example, if you copied image/tiff data,
  * and later image/jpeg, the image/tiff data would be replaced by,
@@ -88,23 +89,26 @@ clipdata clipboards[] = {
  * marked as shared in loliclip, then the data higher in the list
  * is prioritized for shared clipboard.
  *
+ * If reset is set to 1, the data is reset after new copy regardless if the
+ * copy had data for the special selection.
+ *
  */
 static specialclip sclip[] = {
-   REGISTER_SELECTION("text/uri-list", 0),
-   REGISTER_SELECTION("x-special/gnome-copied-files", 0),
-   REGISTER_SELECTION("application/x-kde-cutselection", 0),
-   REGISTER_SELECTION("image/png", 1),
-   REGISTER_SELECTION("image/tiff", 1),
-   REGISTER_SELECTION("image/jpeg", 1),
-   REGISTER_SELECTION("image/x-bmp", 1),
-   REGISTER_SELECTION("image/x-icon", 1),
-   REGISTER_SELECTION("image/x-ico", 1),
-   REGISTER_SELECTION("image/bmp", 1),
-   REGISTER_SELECTION("image/x-win-bitmap", 1),
-   REGISTER_SELECTION("image/x-MS-bmp", 1),
-   REGISTER_SELECTION("text/plain", 0),
-   REGISTER_SELECTION("text/richtext", 0),
-   REGISTER_SELECTION("text/html", 0),
+   REGISTER_SELECTION("text/uri-list", 0, 0),
+   REGISTER_SELECTION("x-special/gnome-copied-files", 0, 0),
+   REGISTER_SELECTION("application/x-kde-cutselection", 0, 0),
+   REGISTER_SELECTION("image/png", 1, 0),
+   REGISTER_SELECTION("image/tiff", 1, 0),
+   REGISTER_SELECTION("image/jpeg", 1, 0),
+   REGISTER_SELECTION("image/x-bmp", 1, 0),
+   REGISTER_SELECTION("image/x-icon", 1, 0),
+   REGISTER_SELECTION("image/x-ico", 1, 0),
+   REGISTER_SELECTION("image/bmp", 1, 0),
+   REGISTER_SELECTION("image/x-win-bitmap", 1, 0),
+   REGISTER_SELECTION("image/x-MS-bmp", 1, 0),
+   REGISTER_SELECTION("text/plain", 2, 1),
+   REGISTER_SELECTION("text/richtext", 2, 1),
+   REGISTER_SELECTION("text/html", 2, 1),
 };
 
 /* command sequence starter */

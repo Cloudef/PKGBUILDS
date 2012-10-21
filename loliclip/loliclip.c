@@ -69,13 +69,18 @@ static xcb_atom_t atoms[LENGTH(natoms)+LENGTH(textsel)];
 /* special clipboards */
 typedef struct specialclip {
    const char *name;
-   unsigned int share_binary;
-   unsigned int dont_set;
+   unsigned int data_index;
+   char reset;
    xcb_atom_t sel;
+} specialclip;
+
+/* data for special clipboards */
+typedef struct data {
    size_t size;
    void *data;
-   struct specialclip *sclip;
-} specialclip;
+   unsigned int dont_set;
+   specialclip *sclip;
+} data;
 
 /* clipboard data struct */
 typedef struct clipdata  {
@@ -109,14 +114,15 @@ typedef struct cmdseq {
    { clipboard_to_handle, clipboard_to_sync, XCB_NONE, NULL, 0, 0, maxclips, flags, 0, 0, 0, 0, NULL, 0, 0, 0, 0, XCB_NONE }
 
 /* register special selections */
-#define REGISTER_SELECTION(name, share_binary) \
-   { name, share_binary, 0, XCB_NONE, 0, NULL, NULL }
-
-/* shared binary selection */
-specialclip bclip = REGISTER_SELECTION("BINARY DATA", 0);
+#define REGISTER_SELECTION(name, data_index, reset) \
+   { name, data_index, reset, XCB_NONE }
 
 /* load configuration */
 #include "config.h"
+
+/* shared binary selection */
+unsigned int bclip_num = 0;
+data *bclip = NULL;
 
 /* undef */
 #undef REGISTER_CLIPBOARD
@@ -414,24 +420,12 @@ static int isbinary(char *buffer, size_t len) {
 
 /* assign new special selection data */
 static int set_special_selection_data(specialclip *s, void *buffer, size_t len) {
-   if (!buffer || !len || s->dont_set) return 0;
-
-   if (!s->share_binary) {
-      if (s->data) free(s->data);
-      s->data = buffer;
-      s->size = len;
-   } else {
-      if (bclip.dont_set) return 0;
-      if (bclip.data) {
-         bclip.sclip->data = NULL;
-         bclip.sclip->size = 0;
-         free(bclip.data);
-      }
-      s->data = bclip.data = buffer;
-      s->size = bclip.size = len;
-      bclip.sclip = s;
-   }
-
+   if (!buffer || !len) return 0;
+   if (bclip[s->data_index].dont_set) return 0;
+   if (bclip[s->data_index].data) free(bclip[s->data_index].data);
+   bclip[s->data_index].data = buffer;
+   bclip[s->data_index].size = len;
+   bclip[s->data_index].sclip = s;
    return 1;
 }
 
@@ -627,8 +621,11 @@ static int restore_clipboard(void *calldata, clipdata *c,
    }
 
    /* create buffer */
-   if (!cbuf && !(cbuf = malloc(size)))
-      return 0;
+   if (!cbuf) {
+      if (!(cbuf = malloc(size+1)))
+         return 0;
+      memset(cbuf, 0, size+1);
+   }
 
    /* copy data */
    memcpy(cbuf+rlen, buffer, blen);
@@ -890,16 +887,13 @@ static specialclip* we_handle_special_selection(xcb_atom_t selection) {
 /* clear all special selections */
 static void clear_special_selections(clipdata *c) {
    unsigned int i;
-   if (!(c->flags & CLIPBOARD_CLEAR_SELECTIONS))
-      return;
 
-   for (i = 0; i != LENGTH(sclip); ++i) {
-      if (sclip[i].data) free(sclip[i].data);
-      sclip[i].data = NULL;
-      sclip[i].size = 0;
+   for (i = 0; i != bclip_num; ++i) {
+      if ((bclip[i].sclip && !bclip[i].sclip->reset) ||
+          !(c->flags & CLIPBOARD_CLEAR_SELECTIONS)) continue;
+      bclip[i].data = NULL;
+      bclip[i].size = 0;
    }
-   bclip.data = NULL;
-   bclip.size = 0;
 }
 
 /* get clipboard by name */
@@ -991,7 +985,7 @@ static void sync_clip(clipdata *c) {
 }
 
 /* init X selection/clipboard mess */
-static void init_clipboard_protocol(void) {
+static int init_clipboard_protocol(void) {
    unsigned int i = 0;
    xcb_intern_atom_reply_t *reply;
    xcb_intern_atom_cookie_t cookies[LENGTH(natoms)];
@@ -1045,9 +1039,16 @@ static void init_clipboard_protocol(void) {
          continue;
       sclip[i].sel = reply->atom;
       satoms[LENGTH(textsel)+i] = sclip[i].sel;
+      if (sclip[i].data_index > bclip_num) bclip_num = sclip[i].data_index;
       OUT("%s = 0x%x", sclip[i].name, reply->atom);
       free(reply);
    }
+
+   /* init data slots for special clipboards */
+   if (!(bclip = calloc((++bclip_num), sizeof(data))))
+      return 0;
+
+   return 1;
 }
 
 /* init X window */
@@ -1313,10 +1314,10 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
             }
          } else tatoms[hasdata++] = satoms[i];
       }
-      for (i = 0; i != LENGTH(sclip); ++i)
-         if (sclip[i].size && sclip[i].data) {
-            OUT("Hasdata: %s", sclip[i].name);
-            tatoms[hasdata++] = sclip[i].sel;
+      for (i = 0; i != bclip_num; ++i)
+         if (bclip[i].size && bclip[i].data) {
+            OUT("Hasdata: %s", bclip[i].sclip->name);
+            tatoms[hasdata++] = bclip[i].sclip->sel;
          }
       incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, hasdata, tatoms);
 #if 0
@@ -1327,8 +1328,9 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    } else {
       if ((s = we_handle_special_selection(target))) {
          OUT("Special data request from %s", s->name);
-         if (s->size && s->data)
-            incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8, (size = s->size), (data = s->data));
+         if (bclip[s->data_index].size && bclip[s->data_index].data)
+            incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8,
+                  (size = bclip[s->data_index].size), (data = bclip[s->data_index].data));
          else {
             OUT("No data, report it!");
             ev.property = XCB_NONE;
@@ -1445,11 +1447,8 @@ static void handle_special_copy(clipdata *c, specialclip *s, void *buffer, size_
       return;
    }
 
-   if (s->share_binary)
-      bclip.dont_set = 1;
-
-   if (c->flags & CLIPBOARD_OWN_IMMEDIATLY)
-      c->should_own = 1;
+   bclip[s->data_index].dont_set = 1;
+   if (c->flags & CLIPBOARD_OWN_IMMEDIATLY) c->should_own = 1;
 }
 
 /* handle copying */
@@ -1458,14 +1457,12 @@ static void handle_copy(clipdata *c, void *buffer, size_t len) {
    handle_clip(c, buffer, len);
 }
 
-
 /* request copy */
 static void request_copy(clipdata *c) {
    unsigned int i = 0;
 
    if (c->has_special) {
-      bclip.dont_set = 0;
-      for (i = 0; i != LENGTH(sclip); ++i) sclip[i].dont_set = 0;
+      for (i = 0; i != bclip_num; ++i) bclip[i].dont_set = 0;
    }
 
    xcb_convert_selection(xcb, xcbw, c->sel,
@@ -1493,18 +1490,18 @@ static xcb_atom_t* get_targets(clipdata *c, xcb_get_property_reply_t *r, unsigne
 {
    xcb_atom_t *targets;
    unsigned int sup, i;
-   char got_text = 0, got_shared = 0;
+   char got_text = 0, got_data[bclip_num];
    specialclip *s;
    if (!r) return NULL;
    xcb_atom_t stargets[r->value_len];
 
+   memset(got_data, 0, sizeof(got_data));
    targets = xcb_get_property_value(r);
    for (i = 0, sup = 0; i != r->value_len; ++i) {
       OUT("[%d] 0x%x", i, targets[i]);
       if (c->has_special && (s = we_handle_special_selection(targets[i]))) {
-         if ((s->share_binary && !got_shared) || !s->share_binary)
-            stargets[sup++] = targets[i];
-         if (s->share_binary) got_shared = 1;
+         if (!got_data[s->data_index]) stargets[sup++] = targets[i];
+         got_data[s->data_index] = 1;
       } else if (!got_text &&
                (targets[i] == atoms[UTF8_STRING] ||
                 targets[i] == atoms[STRING]      ||
@@ -1801,7 +1798,7 @@ static int do_sync(const char *selection, int argc, char **argv) {
             continue;
 
          sbuffer = get_xsel(c->sel, s->sel, &slen);
-         if (s->share_binary) bclip.dont_set = 1;
+         bclip[s->data_index].dont_set = 1;
          set_special_selection_data(s, sbuffer, slen);
          if (sbuffer && slen) OUT("\3Got data from %s", s->name);
       }
@@ -1980,7 +1977,7 @@ FUNC_ARG(arg_binary) {
 
       /* set our data */
       set_special_selection_data(s, buffer, len);
-      if (s->share_binary) bclip.dont_set = 1;
+      bclip[s->data_index].dont_set = 1;
 
       targets = get_xsel(c->sel, atoms[TARGETS], &tlen);
       OUT("Targets length: %zu", tlen);
@@ -1994,7 +1991,7 @@ FUNC_ARG(arg_binary) {
 
          buffer = get_xsel(c->sel, s2->sel, &len);
          set_special_selection_data(s2, buffer, len);
-         if (s2->share_binary) bclip.dont_set = 1;
+         bclip[s->data_index].dont_set = 1;
          if (buffer && len) OUT("\3Got data from %s", s2->name);
       }
       free(targets);
@@ -2013,8 +2010,7 @@ FUNC_ARG(arg_binary) {
          for (i = 0; i != len; ++i)
             printf("%c", buffer[i]);
       }
-      if (buffer && buffer != s->data)
-         free(buffer);
+      if (buffer) free(buffer);
    }
 
    return 1;
@@ -2197,10 +2193,10 @@ int main(int argc, char **argv) {
       if (clipboards[i].data) free(clipboards[i].data);
       if (clipboards[i].targets) free(clipboards[i].targets);
    }
-   for (i = 0; i != LENGTH(sclip); ++i) {
-      if (!sclip[i].share_binary && sclip[i].data) free(sclip[i].data);
+   for (i = 0; i != bclip_num; ++i) {
+      if (bclip[i].data) free(bclip[i].data);
    }
-   if (bclip.data) free(bclip.data);
+   free(bclip);
    free_incrs();
    xcb_disconnect(xcb);
    return EXIT_SUCCESS;
