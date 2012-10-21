@@ -663,6 +663,7 @@ static int ls_clipboard(clipdata *c, char *path, void *calldata, lscallback call
 
       if (!(f = fopen(path, "rb")) || !(z = fopen(zpath, "w+b")))
          goto fail;
+      remove(zpath);
       if (zdecompress(f, z) != Z_OK)
          goto zlib_fail;
       fclose(f); f = z; z = NULL; /* swap */
@@ -686,10 +687,7 @@ static int ls_clipboard(clipdata *c, char *path, void *calldata, lscallback call
    }
 
    fclose(f);
-   if (zpath) {
-      remove(zpath);
-      free(zpath);
-   }
+   if (zpath) free(zpath);
    return 1;
 
 out_of_memory:
