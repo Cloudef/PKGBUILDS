@@ -3,7 +3,7 @@
 
 pkgname=loliclip
 pkgver=2.3
-pkgrel=1
+pkgrel=2
 pkgdesc='Lightweight clipboard manager for X'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
@@ -24,6 +24,6 @@ package() {
 }
 md5sums=('46c5e06f84c2acd322c47db53fbb0c73'
          '6d8f09a85bb877a020d95edfde096583'
-         '9abe49587fe9126a59557799642d7934')
+         '78bd5c29b39a3911d436d282c2d7e16c')
 
 # vim: set ts=8 sw=3 tw=0 :
