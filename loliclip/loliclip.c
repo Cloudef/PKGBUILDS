@@ -1314,10 +1314,10 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
             }
          } else tatoms[hasdata++] = satoms[i];
       }
-      for (i = 0; i != bclip_num; ++i)
-         if (bclip[i].size && bclip[i].data) {
-            OUT("Hasdata: %s", bclip[i].sclip->name);
-            tatoms[hasdata++] = bclip[i].sclip->sel;
+      for (i = 0; i != LENGTH(sclip); ++i)
+         if (bclip[sclip->data_index].sclip == &sclip[i] && bclip[i].size && bclip[i].data) {
+            OUT("Hasdata: %s", sclip[i].name);
+            tatoms[hasdata++] = sclip[i].sel;
          }
       incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, atoms[ATOM], 32, hasdata, tatoms);
 #if 0
@@ -1328,7 +1328,7 @@ static void send_xsel(xcb_window_t requestor, xcb_atom_t property, xcb_atom_t se
    } else {
       if ((s = we_handle_special_selection(target))) {
          OUT("Special data request from %s", s->name);
-         if (bclip[s->data_index].size && bclip[s->data_index].data)
+         if (bclip[s->data_index].sclip == s && bclip[s->data_index].size && bclip[s->data_index].data)
             incr = _xcb_change_property(xcb, &ev, XCB_PROP_MODE_REPLACE, s->sel, 8,
                   (size = bclip[s->data_index].size), (data = bclip[s->data_index].data));
          else {
@@ -1798,8 +1798,8 @@ static int do_sync(const char *selection, int argc, char **argv) {
             continue;
 
          sbuffer = get_xsel(c->sel, s->sel, &slen);
-         bclip[s->data_index].dont_set = 1;
          set_special_selection_data(s, sbuffer, slen);
+         bclip[s->data_index].dont_set = 1;
          if (sbuffer && slen) OUT("\3Got data from %s", s->name);
       }
       free(targets);
