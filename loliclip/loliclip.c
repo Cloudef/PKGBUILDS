@@ -632,7 +632,6 @@ static int restore_clipboard(void *calldata, clipdata *c,
 
    /* copy data */
    memcpy(cbuf+rlen, buffer, blen);
-
    if (rlen+blen != size) return 1;
 
    rindex = *(unsigned int*)calldata;
@@ -1458,7 +1457,6 @@ static void handle_special_copy(clipdata *c, specialclip *s, void *buffer, size_
 /* handle copying */
 static void handle_copy(clipdata *c, void *buffer, size_t len) {
    if (!buffer || !len) return;
-
    handle_clip(c, buffer, len);
 }
 
