@@ -11,9 +11,7 @@ Also comes with bash script for dmenu access.
 
 lolictrl can read dmenu settings from $HOME/.dmenurc
 with the variable LOLICTRL_DMENU, for example:
-```shell
 LOLICTRL_DMENU='dmenu -i -l 15'
-´´´
 
 MISC:
    You can set clipboard data similar to xsel/xclip
