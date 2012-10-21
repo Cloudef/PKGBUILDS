@@ -401,9 +401,14 @@ static int isml(char *buffer, size_t len) {
 
 /* is data binary? */
 static int isbinary(char *buffer, size_t len) {
-   size_t i;
-   for (i = 0; i != len && buffer[i] != 0; ++i);
-   //OUT("BINARY: %zu/%zu", i, len);
+   size_t i; char gotzero = 0;
+   for (i = 0; i != len; ++i) {
+      if (buffer[i] == 0) {
+         if (!gotzero) gotzero = 1;
+         else break;
+      }
+   }
+   /* OUT("BINARY: %s [%zu/%zu]", buffer, i, len); */
    return i<len;
 }
 
@@ -438,6 +443,9 @@ static int set_clipboard_data(clipdata *c, void *buffer, size_t len) {
    unsigned int flags = 0;
 
    if (!buffer || !len) return 0;
+
+   /* reset flags */
+   c->cflags = 0;
 
    /* don't process binary */
    if (isbinary(buffer, len)) {
