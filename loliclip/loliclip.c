@@ -887,12 +887,13 @@ static specialclip* we_handle_special_selection(xcb_atom_t selection) {
 /* clear all special selections */
 static void clear_special_selections(clipdata *c) {
    unsigned int i;
-
    for (i = 0; i != bclip_num; ++i) {
-      if ((bclip[i].sclip && !bclip[i].sclip->reset) ||
-          !(c->flags & CLIPBOARD_CLEAR_SELECTIONS)) continue;
-      bclip[i].data = NULL;
-      bclip[i].size = 0;
+      if ((bclip[i].sclip && bclip[i].sclip->reset) ||
+          (c->flags & CLIPBOARD_CLEAR_SELECTIONS)) {
+         OUT("Cleared selection: %s", bclip[i].sclip?bclip[i].sclip->name:"...");
+         bclip[i].data = NULL;
+         bclip[i].size = 0;
+      }
    }
 }
 
