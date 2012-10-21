@@ -6,7 +6,9 @@
 
 [[ -f "$HOME/.dmenurc" ]] && {
    . "$HOME/.dmenurc"
-} || {
+   DMENU="$LOLICTRL_DMENU"
+}
+[[ -n "$DMENU" ]] || {
    DMENU="dmenu -i -l 15"
 }
 LOLICLIP="loliclip"
