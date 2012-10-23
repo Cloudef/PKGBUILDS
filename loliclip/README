@@ -13,6 +13,12 @@ lolictrl can read dmenu settings from $HOME/.dmenurc
 with the variable LOLICTRL_DMENU, for example:
 LOLICTRL_DMENU='dmenu -i -l 15'
 
+By default, loliclip uses CLEAR_SELECTIONS bitflag for,
+XA_CLIPBOARD to increase compatibility with applications.
+
+Without this flag however, you can have some extra flexibility
+related to selection targets.
+
 MISC:
    You can set clipboard data similar to xsel/xclip
    echo "asd" | loliclip -p # copy to primary

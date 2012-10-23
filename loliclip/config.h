@@ -54,7 +54,8 @@ clipdata clipboards[] = {
    REGISTER_CLIPBOARD("CLIPBOARD", "PRIMARY", 150,
          CLIPBOARD_TRIM_WHITESPACE_NO_MULTILINE  |
          CLIPBOARD_TRIM_TRAILING_NEWLINE |
-         CLIPBOARD_OWN_IMMEDIATLY),
+         CLIPBOARD_OWN_IMMEDIATLY |
+         CLIPBOARD_CLEAR_SELECTIONS),
 };
 
 /* registered special selections and their settings
@@ -91,6 +92,9 @@ clipdata clipboards[] = {
  *
  * If reset is set to 1, the data is reset after new copy regardless if the
  * copy had data for the special selection.
+ *
+ * NOTE: Reset bit is useless when CLEAR_SELECTIONS bit flag is enabled
+ * for clipboard. It's effectietly same as settin reset bit for every special selection.
  *
  */
 static specialclip sclip[] = {
