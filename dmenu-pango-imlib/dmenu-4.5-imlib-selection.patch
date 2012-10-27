@@ -20,9 +20,48 @@ diff -urN dmenu-4.5/config.mk src/dmenu-4.5/config.mk
  
  # compiler and linker
  CC = cc
+diff -urN dmenu-4.5/dmenu.1 src/dmenu-4.5/dmenu.1
+--- dmenu-4.5/dmenu.1	2012-10-27 03:11:06.680311323 +0300
++++ src/dmenu-4.5/dmenu.1	2012-10-27 19:31:20.783617590 +0300
+@@ -29,6 +29,11 @@
+ stdin.  When the user selects an item and presses Return, their choice is printed
+ to stdout and dmenu terminates.  Entering text will narrow the items to those
+ matching the tokens in the input.
++
++example pipe listing with images:
++        IMG:/mnt/pictures/lolcat.jpg\\tThis is a lolcat\\n
++        IMG:/mnt/pictures/david.jpg\\tThis is a picture of david\\n
++        This is a item without a picture\\n
+ .P
+ .B dmenu_run
+ is a script used by
+@@ -46,6 +51,9 @@
+ .B \-i
+ dmenu matches menu items case insensitively.
+ .TP
++.B \-g
++dmenu generates thumbnails to $XDG_DATA_HOME/dmenu/imlib from piped data.
++.TP
+ .BI \-l " lines"
+ dmenu lists items vertically, with the given number of lines.
+ .TP
+@@ -70,6 +78,13 @@
+ .BI \-sf " color"
+ defines the selected foreground color.
+ .TP
++.BI \-si " selected index"
++hilight specified menu item by index automatically.
++.TP
++.BI \-is " image size"
++image size used for displaying images and generating cached versions.
++if previously used image was cached before with different -is parameter, it gets cached again.
++.TP
+ .B \-v
+ prints version information to stdout, then exits.
+ .SH USAGE
 diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
 --- dmenu-4.5/dmenu.c	2012-10-27 03:11:06.680311323 +0300
-+++ src/dmenu-4.5/dmenu.c	2012-10-27 18:09:16.604868734 +0300
++++ src/dmenu-4.5/dmenu.c	2012-10-27 19:32:35.219708679 +0300
 @@ -4,6 +4,8 @@
  #include <stdlib.h>
  #include <string.h>
@@ -193,7 +232,7 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
  
  	if(lines > 0) {
  		/* draw vertical list */
-+                dc->x = 4+imagesize;
++                if (imagesize) dc->x = 4+imagesize;
  		dc->w = mw - dc->x;
  		for(item = curr; item != next; item = item->right) {
  			dc->y += dc->h;
@@ -206,7 +245,7 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
  
  	/* read each line from stdin and add it to the item list */
  	for(i = 0; fgets(buf, sizeof buf, stdin); i++) {
-@@ -501,42 +617,37 @@
+@@ -501,42 +617,38 @@
  			eprintf("cannot strdup %u bytes:", strlen(buf)+1);
  		if(strlen(items[i].text) > max)
  			max = strlen(maxstr = items[i].text);
@@ -225,16 +264,17 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
 +                } else items[i].image = NULL;
 +
 +                if (generatecache && items[i].image && strcmp(items[i].image, limg?limg:"")) {
-+                        limg = items[i].image;
 +                        load_image(items[i].image, &w, &h);
 +                        fprintf(stderr, "-!- Generating thumbnail for: %s\n", items[i].image);
 +                }
++                if (items[i].image) limg = items[i].image;
  	}
 -	if(items)
 +	if(items) {
  		items[i].text = NULL;
 +                items[i].image = NULL;
 +        }
++        if (!limg) imagesize = 0;
  	inputw = maxstr ? textw(dc, maxstr) : 0;
  	lines = MIN(lines, i);
  }
@@ -272,7 +312,7 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
  	int x, y, screen = DefaultScreen(dc->dpy);
  	Window root = RootWindow(dc->dpy, screen);
  	XSetWindowAttributes swa;
-@@ -595,7 +706,6 @@
+@@ -595,7 +707,6 @@
  	}
  	promptw = prompt ? textw(dc, prompt) : 0;
  	inputw = MIN(inputw, mw/3);
@@ -280,7 +320,7 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
  
  	/* create menu window */
  	swa.override_redirect = True;
-@@ -613,12 +723,71 @@
+@@ -613,12 +724,71 @@
  
  	XMapRaised(dc->dpy, win);
  	resizedc(dc, mw, mh);
@@ -334,13 +374,13 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
 +
 +                if (!lines) continue;
 +                if (sel && sel->image && strcmp(sel->image, limg?limg:"")) {
-+                        load_image(sel->image, &width, &height);
++                        if (imagesize) load_image(sel->image, &width, &height);
 +                } else if ((!sel || !sel->image) && image) {
 +                        imlib_free_image();
 +                        image = NULL;
 +                }
-+                if (image) imlib_render_image_on_drawable(4+(imagesize-width)/2,
-+                                                          (imagesize-height)/2+dc->font.height*1.2+lines);
++                if (image && imagesize) imlib_render_image_on_drawable(4+(imagesize-width)/2,
++                      (imagesize-height)/2+dc->font.height*1.2+lines);
 +                if (sel) limg = sel->image;
 +                else limg = NULL;
 +	}

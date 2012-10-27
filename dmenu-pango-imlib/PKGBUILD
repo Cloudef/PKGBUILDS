@@ -14,7 +14,7 @@ source=(http://dl.suckless.org/tools/dmenu-$pkgver.tar.gz
         dmenu-4.5-imlib-selection.patch)
 md5sums=('9c46169ed703732ec52ed946c27d84b4'
          '276f65a23cbbe90053efc362e67ead9b'
-         '1918ada9f3aae7678ba90e16a84a1d1b')
+         '96af7dc0f2da655b601859a2c63c9a81')
 
 build() {
 	cd $srcdir/dmenu-$pkgver
