@@ -10,6 +10,7 @@
 #include <mpd/client.h>
 
 #define MPD_TIMEOUT 3000
+#define MUSIC_DIR "/mnt/storage/music"
 
 #define _D "\1-\2!\1-\5"
 #define ERR_SNTX _D" \3%d \2[\4%s \5:: \4%s\2]\5:"
@@ -201,7 +202,7 @@ static char* fetch_cover(const char *dir) {
    srand(time(0));
    memset(rdir, 0, sizeof(rdir));
    memset(fcover, 0, sizeof(fcover));
-   snprintf(rdir, sizeof(rdir)-1, "%s/%s", "/mnt/storage/music", dir);
+   snprintf(rdir, sizeof(rdir)-1, "%s/%s", MUSIC_DIR, dir);
    if (!(dp = opendir(rdir))) return NULL;
    while ((ep = readdir(dp))) {
       if (ep->d_type != DT_REG) continue;
@@ -209,9 +210,13 @@ static char* fetch_cover(const char *dir) {
           !_strupstr(ep->d_name, ".png"))
          continue;
 
+      strncpy(fcover, ep->d_name, sizeof(fcover)-1);
+#if 0 /** don't randomize **/
       if ((rand()%10)==0)
          break;
-      strncpy(fcover, ep->d_name, sizeof(fcover)-1);
+#else
+      break;
+#endif
    }
    closedir(dp);
 
@@ -239,9 +244,9 @@ static char* get_cover_art(const struct mpd_song *song) {
 }
 
 /* add song to queue */
-static int queue_add_song(const struct mpd_song *song, const char *sep) {
+static int queue_add_song(const struct mpd_song *song, const char *sep, int printimg) {
    if (!song) return RETURN_FAIL;
-   char *basec;
+   char *basec, *cover;
    const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
    const char *track   = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
    const char *comment = mpd_song_get_tag(song, MPD_TAG_COMMENT, 0);
@@ -272,8 +277,12 @@ static int queue_add_song(const struct mpd_song *song, const char *sep) {
    OUT("ALBUM:  %s", album);
    OUT("TITLE:  %s", title);
 #else
-   if (artist && album && title)
+   if (artist && album && title) {
+      if (printimg && (cover = get_cover_art(song))) {
+         printf("IMG:%s\t", cover);
+      }
       printf("%s%s%s%s%s\n", artist, sep, album, sep, title);
+   }
 #endif
    return RETURN_OK;
 }
@@ -333,7 +342,7 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
 static void now_playing(void) {
    char *cover;
    struct mpd_song *song = mpd_run_current_song(mpd->connection);
-   queue_add_song(song, " - ");
+   queue_add_song(song, "│", 0);
    if ((cover = get_cover_art(song))) {
       printf("%s\n", cover);
       free(cover);
@@ -361,7 +370,7 @@ static int update_queue(void) {
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         queue_add_song(mpd_entity_get_song(entity), "│");
+         queue_add_song(mpd_entity_get_song(entity), "│", 1);
       mpd_entity_free(entity);
    }
 
@@ -511,7 +520,7 @@ FUNC_OPT(opt_play) {
 
       OUT("play: %s", search);
       song = queue_search_song(search);
-      queue_add_song(song, " - ");
+      queue_add_song(song, " - ", 0);
       mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
       mpd_song_free(song);
    }

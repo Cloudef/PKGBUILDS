@@ -8,7 +8,7 @@ pkgdesc='Dmenu client for MPD'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
 license=('WTFPL')
-depends=('mpd' 'dmenu')
+depends=('mpd' 'dmenu-pango-imlib')
 makedepends=('gcc')
 source=('lolimpd.c' 'lolimpdnu')
 
@@ -21,7 +21,7 @@ package() {
    install -Dm775 "$srcdir/lolimpdnu" "${pkgdir}/usr/bin/lolimpdnu"
    install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
 }
-md5sums=('a7a668bd99b5922f5eb4f450dd7dc05a'
-         '4c6b627ad23a2fafcd49c96ebb08c8fb')
+md5sums=('32be8296b281e5a105439b28e1fafb9c'
+         '8d5fc11d75d53c9e15c49b6bffaada91')
 
 # vim: set ts=8 sw=3 tw=0 :

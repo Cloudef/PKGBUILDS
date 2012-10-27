@@ -5,7 +5,13 @@ LOLIMPD="lolimpd"
 main() {
    # with sorting (disabled by default, sorting is going to be added into lolimpd)
    # local song="$("$LOLIMPD" ls | sort | dmenu -l 15 -p "lolimpd")"
-   local song="$("$LOLIMPD" ls | dmenu -l 15 -p "lolimpd")"
+   local song=
+   local g=
+   local songs="$("$LOLIMPD" ls)"
+   local index=$(echo "$songs" | grep -n "$("$LOLIMPD" | head -n1)" | cut -f1 -d:)
+   [[ "$@" == "-g" ]] && g="-g"
+   [[ -n "$index" ]] || index=0
+   song="$(echo "$songs" | dmenu -l 15 $g -si $index -p "lolimpd")"
    [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
 }
