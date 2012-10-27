@@ -8,9 +8,9 @@ main() {
    local song=
    local g=
    local songs="$("$LOLIMPD" ls)"
-   local index=$(echo "$songs" | grep -n "$("$LOLIMPD" | head -n1)" | cut -f1 -d:)
+   local index=$(echo "$songs" | grep -n "$("$LOLIMPD" | head -n1)" | cut -f1 -d: | head -n1)
    [[ "$@" == "-g" ]] && g="-g"
-   [[ -n "$index" ]] || index=0
+   [[ -n "$index" ]] || index=1
    song="$(echo "$songs" | dmenu -l 15 $g -si $index -p "lolimpd")"
    [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
