@@ -1,0 +1,15 @@
+Pango and imlib patched dmenu.
+Thumbnails get cached to $XDG_DATA_HOME/dmenu/imlib.
+
+Pass -g to generate thumbnails immediatly for the piped images.
+Pass -is to specify image size (keeping aspect ratio).
+Note, that using too big images cause slowdown because images are loaded each time, selection image differs from last image.
+
+Example pipe listing with images:
+IMG:/mnt/pictures/lolcat.jpg\tThis is a lolcat\n
+IMG:/mnt/pictures/david.jpg\tThis is a picture of david\n
+This is a item without a picture\n
+
+Additional options:
+Pass -si to specify starting index to dmenu.
+ex. -si 5 to start from item 5.

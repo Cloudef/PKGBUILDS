@@ -1,0 +1,32 @@
+# Maintainer: Jari Vetoniemi <mailroxas _at_ gmail >
+pkgname=dmenu-pango-imlib
+pkgver=4.5
+pkgrel=1
+pkgdesc="Dynamic X menu - with pango support"
+url="http://tools.suckless.org/dmenu/"
+arch=('i686' 'x86_64')
+license=('MIT')
+depends=('sh' 'libxinerama' 'libxft' 'pango' 'imlib2')
+conflicts=('dmenu' 'dmenu-xft')
+provides=('dmenu')
+source=(http://dl.suckless.org/tools/dmenu-$pkgver.tar.gz
+        dmenu-4.5-pango.patch
+        dmenu-4.5-imlib-selection.patch)
+md5sums=('9c46169ed703732ec52ed946c27d84b4'
+         '276f65a23cbbe90053efc362e67ead9b'
+         '1918ada9f3aae7678ba90e16a84a1d1b')
+
+build() {
+	cd $srcdir/dmenu-$pkgver
+	patch -p1 < ../dmenu-$pkgver-pango.patch
+	patch -p1 < ../dmenu-$pkgver-imlib-selection.patch
+	make
+}
+package()
+{
+    cd "$srcdir/dmenu-$pkgver"
+    make DESTDIR=$pkgdir PREFIX=/usr install
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+}
+
