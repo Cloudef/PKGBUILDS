@@ -1,5 +1,5 @@
 diff -urN dmenu-4.5/config.mk src/dmenu-4.5/config.mk
---- dmenu-4.5/config.mk	2012-10-31 19:20:09.852549197 +0200
+--- dmenu-4.5/config.mk	2012-10-31 21:07:05.124041912 +0200
 +++ src/dmenu-4.5/config.mk	2012-10-27 18:09:23.704813374 +0300
 @@ -13,8 +13,8 @@
  XINERAMAFLAGS = -DXINERAMA
@@ -21,7 +21,7 @@ diff -urN dmenu-4.5/config.mk src/dmenu-4.5/config.mk
  # compiler and linker
  CC = cc
 diff -urN dmenu-4.5/dmenu.1 src/dmenu-4.5/dmenu.1
---- dmenu-4.5/dmenu.1	2012-10-31 19:20:09.855882526 +0200
+--- dmenu-4.5/dmenu.1	2012-10-31 21:07:05.124041912 +0200
 +++ src/dmenu-4.5/dmenu.1	2012-10-27 19:31:20.783617590 +0300
 @@ -29,6 +29,11 @@
  stdin.  When the user selects an item and presses Return, their choice is printed
@@ -60,7 +60,7 @@ diff -urN dmenu-4.5/dmenu.1 src/dmenu-4.5/dmenu.1
  prints version information to stdout, then exits.
  .SH USAGE
 diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
---- dmenu-4.5/dmenu.c	2012-10-31 19:20:09.855882526 +0200
+--- dmenu-4.5/dmenu.c	2012-10-31 21:07:05.124041912 +0200
 +++ src/dmenu-4.5/dmenu.c	2012-10-31 19:18:52.135974648 +0200
 @@ -4,6 +4,8 @@
  #include <stdlib.h>
@@ -228,15 +228,6 @@ diff -urN dmenu-4.5/dmenu.c src/dmenu-4.5/dmenu.c
  		else
  			usage();
  
-@@ -176,7 +289,7 @@
-     freecol(dc, selcol);
-     XDestroyWindow(dc->dpy, win);
-     XUngrabKeyboard(dc->dpy, CurrentTime);
--    freedc(dc);
-+    //freedc(dc);
- }
- 
- void
 @@ -202,6 +315,7 @@
  
  	if(lines > 0) {
