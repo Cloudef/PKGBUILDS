@@ -1,6 +1,13 @@
 #!/bin/sh
 # dmenu access to lolimpd
 
+[[ -f "$HOME/.dmenurc" ]] && {
+   . "$HOME/.dmenurc"
+   DMENU="$LOLIMPDNU_DMENU"
+}
+[[ -n "$DMENU" ]] || {
+   DMENU="dmenu -i -l 15"
+}
 LOLIMPD="lolimpd"
 main() {
    # with sorting (disabled by default, sorting is going to be added into lolimpd)
@@ -11,7 +18,7 @@ main() {
    local index=$(echo "$songs" | grep -n "$("$LOLIMPD" | head -n1)" | cut -f1 -d: | head -n1)
    [[ "$@" == "-g" ]] && g="-g"
    [[ -n "$index" ]] || index=1
-   song="$(echo "$songs" | dmenu -i -l 15 $g -si $index -p "lolimpd")"
+   song="$(echo "$songs" | $DMENU $g -si $index -p "lolimpd")"
    [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
 }
