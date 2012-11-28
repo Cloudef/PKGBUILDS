@@ -10,7 +10,7 @@
 #include <mpd/client.h>
 
 #define MPD_TIMEOUT 3000
-#define MUSIC_DIR "/mnt/storage/music"
+#define MUSIC_DIR "/mnt/東方/music"
 
 #define _D "\1-\2!\1-\5"
 #define ERR_SNTX _D" \3%d \2[\4%s \5:: \4%s\2]\5:"
