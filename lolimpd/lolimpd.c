@@ -196,38 +196,32 @@ mpd_error:
 
 /* fetch cover art */
 static char* fetch_cover(const char *dir) {
-   DIR *dp; struct dirent *ep; size_t len;
+   struct dirent **names; size_t len, n, i;
    char rdir[PATH_MAX], fcover[256], *cover;
 
-   srand(time(0));
    memset(rdir, 0, sizeof(rdir));
    memset(fcover, 0, sizeof(fcover));
    snprintf(rdir, sizeof(rdir)-1, "%s/%s", MUSIC_DIR, dir);
-   if (!(dp = opendir(rdir))) return NULL;
-   while ((ep = readdir(dp))) {
-      if (ep->d_type != DT_REG) continue;
-      if (!_strupstr(ep->d_name, ".jpg") &&
-          !_strupstr(ep->d_name, ".png"))
-         continue;
+   if (!(n = scandir(rdir, &names, 0, alphasort)))
+      return NULL;
+   for (i = 0; i != n; ++i) {
+      if (names[i]->d_type != DT_REG) continue;
+      if (!_strupstr(names[i]->d_name, ".jpg") &&
+          !_strupstr(names[i]->d_name, ".png")) continue;
 
-      strncpy(fcover, ep->d_name, sizeof(fcover)-1);
-#if 0 /** don't randomize **/
-      if ((rand()%10)==0)
-         break;
-#else
+      strncpy(fcover, names[i]->d_name, sizeof(fcover)-1);
       break;
-#endif
    }
-   closedir(dp);
+   for (i = 0; i != n; ++i) free(names[i]);
+   free(names);
 
    if (!strlen(fcover))
       return NULL;
 
    len = strlen(rdir)+1+strlen(fcover)+2;
-   if (!(cover = malloc(len)))
+   if (!(cover = calloc(1, len)))
       return NULL;
 
-   memset(cover, 0, len);
    snprintf(cover, len-1, "%s/%s", rdir, fcover);
    return cover;
 }
@@ -246,7 +240,9 @@ static char* get_cover_art(const struct mpd_song *song) {
 /* add song to queue */
 static int queue_add_song(const struct mpd_song *song, const char *sep, int printimg) {
    if (!song) return RETURN_FAIL;
-   char *basec, *cover;
+   char *basec, *cover = NULL;
+   static char *lalbum = NULL;
+   static char *lcover = NULL;
    const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
    const char *track   = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
    const char *comment = mpd_song_get_tag(song, MPD_TAG_COMMENT, 0);
@@ -278,12 +274,26 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
    OUT("TITLE:  %s", title);
 #else
    if (artist && album && title) {
-      if (printimg && (cover = get_cover_art(song))) {
-         printf("IMG:%s\t", cover);
+      if (printimg) {
+         if (lcover && !strcmp(lalbum, album)) {
+            cover = strdup(lcover);
+         } else cover = get_cover_art(song);
+         if (cover) printf("IMG:%s\t", cover);
       }
       printf("%s%s%s%s%s\n", artist, sep, album, sep, title);
    }
 #endif
+
+   /* remember last album && cover */
+   if (lalbum) free(lalbum);
+   if (lcover) free(lcover);
+   if (album) lalbum = strdup(album);
+   else lalbum = NULL;
+   if (cover) {
+      lcover = strdup(cover);
+      free(cover);
+   } else lcover = NULL;
+
    return RETURN_OK;
 }
 
@@ -469,9 +479,8 @@ static int init_mpd(void) {
    if (port)   mpd_port = strtol(port, (char**) NULL, 10);
 
    if (mpd) quit_mpd();
-   if (!(mpd = malloc(sizeof(mpdclient))))
+   if (!(mpd = calloc(1, sizeof(mpdclient))))
       goto alloc_fail;
-   memset(mpd, 0, sizeof(mpdclient));
 
    if (!(mpd->connection = mpd_connection_new(host, mpd_port, MPD_TIMEOUT)) ||
          mpd_connection_get_error(mpd->connection))
@@ -509,10 +518,9 @@ FUNC_OPT(opt_play) {
          len += strlen(argv[i]);
       } len += 2;
 
-      if (!(search = malloc(len)))
+      if (!(search = calloc(1, len)))
          return EXIT_FAILURE;
 
-      memset(search, 0, len);
       for (i = 0; i != argc; ++i) {
          if (i) search = strncat(search, " ", len);
          search = strncat(search, argv[i], len);
