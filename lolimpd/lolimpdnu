@@ -1,6 +1,19 @@
 #!/bin/sh
 # dmenu access to lolimpd
 
+# lolimpd binary name
+LOLIMPD="lolimpd"
+
+# dmenu with imlib support available?
+HAS_IMLIB_DMENU=1
+
+# cache file
+CACHE="/tmp/lolimpdnu.cache"
+
+# removes the cache file after song was selected
+NOCACHE=0
+
+# read user options
 [[ -f "$HOME/.dmenurc" ]] && {
    . "$HOME/.dmenurc"
    DMENU="$LOLIMPDNU_DMENU"
@@ -8,17 +21,44 @@
 [[ -n "$DMENU" ]] || {
    DMENU="dmenu -i -l 15"
 }
-LOLIMPD="lolimpd"
+
+# lolis live here
 main() {
-   # with sorting (disabled by default, sorting is going to be added into lolimpd)
-   # local song="$("$LOLIMPD" ls | sort | dmenu -l 15 -p "lolimpd")"
    local song=
    local g=
-   local songs="$("$LOLIMPD" ls)"
-   local index=$(echo "$songs" | grep -n "$("$LOLIMPD" | head -n1)" | cut -f1 -d: | head -n1)
-   [[ "$@" == "-g" ]] && g="-g"
-   [[ -n "$index" ]] || index=1
-   song="$(echo "$songs" | $DMENU $g -si $index -p "lolimpd")"
+   local index=
+
+   # options
+   [[ "$1" == "-c" ]] && { rm "$CACHE"; shift 1; }
+   [[ "$1" == "-g" ]] && { g="-g"; shift 1; }
+   [[ "$1" == "-h" ]] && {
+      echo "usage: lolimpdnu [cgh]"
+      echo "\t-c\tClear song list cache. Use this, if you add/remove songs from/to mpd."
+      echo "\t-g\tGenerate tumbnail cache for all songs. (Needs dmenu with imlib support)"
+      echo "\t-h\tShow this help."
+      return;
+   }
+
+   # generate cache, if one doesn't exist
+   [[ -f "$CACHE" ]] || "$LOLIMPD" ls > "$CACHE"
+
+   # imlib specific
+   [[ $HAS_IMLIB_DMENU -eq 1 ]] && {
+      # search for current song
+      # FIXME: lolimpd should provide current playing song index
+      index=$(grep -n "$("$LOLIMPD" | head -n1)" "$CACHE" | cut -f1 -d: | head -n1)
+      [[ -n "$index" ]] || index=1
+
+      # select song with dmenu, starting from currently playing song
+      song="$(cat "$CACHE" | $DMENU $g -si $index -p "lolimpd")"
+   }
+
+   # default dmenu
+   [[ $HAS_IMLIB_DMENU -eq 0 ]] && {
+      song="$(cat "$CACHE" | $DMENU -p "lolimpd")"
+   }
+
+   # play song if selected
    [[ -n "$song" ]] || return
    "$LOLIMPD" play "$song"
 }
