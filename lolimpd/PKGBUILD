@@ -3,7 +3,7 @@
 
 pkgname=lolimpd
 pkgver=1.0
-pkgrel=5
+pkgrel=6
 pkgdesc='Dmenu client for MPD'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
@@ -22,6 +22,6 @@ package() {
    install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
 }
 md5sums=('ec6f2c49ac298704db5be80ec1907bd8'
-         '156558f2bd540d42000461026afb5502')
+         'c2c8094628b7f35d72a55297d9beada7')
 
 # vim: set ts=8 sw=3 tw=0 :
