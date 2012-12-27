@@ -11,6 +11,8 @@ HAS_IMLIB_DMENU=1
 CACHE="/tmp/lolimpdnu.cache"
 
 # removes the cache file after song was selected
+# set this to 1, if you use multiple playlists.
+# if the playlists are big though, lolimpdnu will be slow.
 NOCACHE=0
 
 # read user options
@@ -68,6 +70,9 @@ main() {
       [[ -n "$filter" ]] && song="$(grep "$filter" "$CACHE" | $DMENU -p "lolimpd")"
       [[ -n "$filter" ]] || song="$(cat "$CACHE" | $DMENU -p "lolimpd")"
    }
+
+   # remove cache if asked
+   [[ $NOCACHE -eq 0 ]] || rm "$CACHE"
 
    # play song if selected
    [[ -n "$song" ]] || return
