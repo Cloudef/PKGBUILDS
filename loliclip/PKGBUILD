@@ -24,6 +24,6 @@ package() {
 }
 md5sums=('2a920041c9171595f0acdb6a8335154b'
          'd5939e93ca151ec858d47c7d7f1aaf88'
-         '78bd5c29b39a3911d436d282c2d7e16c')
+         'e5f70af2100159dd60d56ad09ce801e6')
 
 # vim: set ts=8 sw=3 tw=0 :
