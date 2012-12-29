@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # replaces xdg-open
 # inspired from mimi: https://github.com/taylorchu/mimi
 

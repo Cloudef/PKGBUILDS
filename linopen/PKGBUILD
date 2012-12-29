@@ -18,7 +18,7 @@ package() {
    install -Dm644 "$srcdir/linopen.conf" "${pkgdir}/etc/linopen.conf"
    ln -s "/usr/bin/xdg-open" "$pkgdir/usr/bin/open"
 }
-md5sums=('bde5b8b77ca98bbf89d0ca4cf5cbd444'
+md5sums=('4232829b8a10400c3d2601bd2556323d'
          '37eef2ae627bb018b0638d6fefde7780')
 
 # vim: set ts=8 sw=3 tw=0 :
