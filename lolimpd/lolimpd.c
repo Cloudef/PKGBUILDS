@@ -202,7 +202,7 @@ static char* fetch_cover(const char *dir) {
    memset(rdir, 0, sizeof(rdir));
    memset(fcover, 0, sizeof(fcover));
    snprintf(rdir, sizeof(rdir)-1, "%s/%s", MUSIC_DIR, dir);
-   if (!(n = scandir(rdir, &names, 0, alphasort)))
+   if (!(n = scandir(rdir, &names, 0, alphasort)) || n == -1)
       return NULL;
    for (i = 0; i != n; ++i) {
       if (names[i]->d_type != DT_REG) continue;
