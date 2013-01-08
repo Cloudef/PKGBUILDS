@@ -9,6 +9,10 @@
 #include <libgen.h>
 #include <mpd/client.h>
 
+/* really dirty code :)
+ * it's funny how most useful tools are always like that.
+ * will cleanup when I feel like it. */
+
 #define MPD_TIMEOUT 3000
 #define MUSIC_DIR "/mnt/東方/music"
 
@@ -298,7 +302,8 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
 }
 
 /* match song from queue */
-static int queue_match_song(const struct mpd_song *song, const char *needle, const char *sep) {
+static int queue_match_song(const struct mpd_song *song, const char *needle, const char *sep, int *exact) {
+   if (exact) *exact = 0;
    if (!song) return RETURN_FAIL;
    char *basec;
    const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
@@ -324,10 +329,29 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
    size_t len  = strlen(artist)+lsep+strlen(album)+lsep+strlen(title)+2;
    if ((whole = malloc(len))) {
       snprintf(whole, len-1, "%s%s%s%s%s", artist, sep, album, sep, title);
-      if (!strcmp(needle, whole))
+      if (!strcmp(needle, whole)) {
          found = 1;
-      else if (_strupstr(whole, needle))
+         if (exact) *exact = 1;
+      } else if (_strupstr(whole, needle))
          found = 1;
+
+      if (!found) {
+         int tokc = 0;
+         char *cpy = strdup(needle);
+         if (cpy) {
+            char *tok = strtok(cpy, " ");
+            while (tok) {
+               if (!strcmp(tok, whole)) {
+                  found++;
+               } else if (_strupstr(whole, tok))
+                  found++;
+               tok = strtok(NULL, " ");
+               ++tokc;
+            }
+            if (tokc != found) found = 0;
+            free(cpy);
+         }
+      }
 
       free(whole);
       if (found) return RETURN_OK;
@@ -399,6 +423,7 @@ fail:
 static struct mpd_song* queue_search_song(const char *needle) {
    struct mpd_song *song = NULL;
    struct mpd_entity *entity;
+   int exact = 0;
    assert(mpd && mpd->connection);
 
    if (!mpd_send_list_queue_meta(mpd->connection))
@@ -406,8 +431,10 @@ static struct mpd_song* queue_search_song(const char *needle) {
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         if (!song && queue_match_song(mpd_entity_get_song(entity), needle, "│") == RETURN_OK)
+         if (!exact && queue_match_song(mpd_entity_get_song(entity), needle, "│", &exact) == RETURN_OK) {
+               if (song) mpd_song_free(song);
                song = mpd_song_dup(mpd_entity_get_song(entity));
+            }
       mpd_entity_free(entity);
    }
 
@@ -511,6 +538,7 @@ FUNC_OPT(opt_play) {
    struct mpd_song *song = NULL;
    size_t len = 0, i = 0;
    char *search;
+
    if (!argc) mpd_send_play(mpd->connection);
    else {
       for (i = 0; i != argc; ++i) {
@@ -527,10 +555,14 @@ FUNC_OPT(opt_play) {
       }
 
       OUT("play: %s", search);
-      song = queue_search_song(search);
-      queue_add_song(song, " - ", 0);
-      mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
-      mpd_song_free(song);
+      if ((song = queue_search_song(search))) {
+         queue_add_song(song, " - ", 0);
+         mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
+         mpd_song_free(song);
+      } else {
+         printf("no match for: %s\n", search);
+      }
+      free(search);
    }
 
    return EXIT_SUCCESS;
