@@ -258,7 +258,7 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_ALBUM_ARTIST, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_COMPOSER, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_PERFORMER, 0);
-   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = dirname(based);
+   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = basename(dirname(based));
    if (!title && (basec = strdup(mpd_song_get_uri(song)))) title = basename(basec);
 
    /* fallbacks */
@@ -323,7 +323,7 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_ALBUM_ARTIST, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_COMPOSER, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_PERFORMER, 0);
-   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = dirname(based);
+   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = basename(dirname(based));
    if (!title && (basec = strdup(mpd_song_get_uri(song)))) title = basename(basec);
 
    /* fallbacks */

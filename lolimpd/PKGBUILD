@@ -3,7 +3,7 @@
 
 pkgname=lolimpd
 pkgver=1.3
-pkgrel=1
+pkgrel=2
 pkgdesc='Dmenu client for MPD'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
