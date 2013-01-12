@@ -244,7 +244,7 @@ static char* get_cover_art(const struct mpd_song *song) {
 /* add song to queue */
 static int queue_add_song(const struct mpd_song *song, const char *sep, int printimg) {
    if (!song) return RETURN_FAIL;
-   char *basec, *cover = NULL;
+   char *basec = NULL, *based = NULL, *cover = NULL;
    static char *lalbum = NULL;
    static char *lcover = NULL;
    const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
@@ -258,9 +258,13 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_ALBUM_ARTIST, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_COMPOSER, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_PERFORMER, 0);
-   if (!album && (basec = strdup(mpd_song_get_uri(song)))) {
-      album = basename(basec); free(basec);
-   }
+   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = dirname(based);
+   if (!title && (basec = strdup(mpd_song_get_uri(song)))) title = basename(basec);
+
+   /* fallbacks */
+   if (!artist) artist = "noartist";
+   if (!album)  album  = "noalbum";
+   if (!title)  title  = "notitle";
 
 #if 0
    OUT("URI:    %s", mpd_song_get_uri(song));
@@ -298,6 +302,8 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
       free(cover);
    } else lcover = NULL;
 
+   if (based) free(based);
+   if (basec) free(basec);
    return RETURN_OK;
 }
 
@@ -305,7 +311,7 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
 static int queue_match_song(const struct mpd_song *song, const char *needle, const char *sep, int *exact) {
    if (exact) *exact = 0;
    if (!song) return RETURN_FAIL;
-   char *basec;
+   char *basec = NULL, *based = NULL;
    const char *disc    = mpd_song_get_tag(song, MPD_TAG_DISC, 0);
    const char *track   = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
    const char *comment = mpd_song_get_tag(song, MPD_TAG_COMMENT, 0);
@@ -317,18 +323,27 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_ALBUM_ARTIST, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_COMPOSER, 0);
    if (!artist) artist = mpd_song_get_tag(song, MPD_TAG_PERFORMER, 0);
-   if (!album && (basec = strdup(mpd_song_get_uri(song)))) {
-      album = basename(basec); free(basec);
-   }
+   if (!album && (based = strdup(mpd_song_get_uri(song)))) album = dirname(based);
+   if (!title && (basec = strdup(mpd_song_get_uri(song)))) title = basename(basec);
 
-   if (!album || !artist || !title)
+   /* fallbacks */
+   if (!artist) artist = "noartist";
+   if (!album)  album  = "noalbum";
+   if (!title)  title  = "notitle";
+
+   if (!album || !artist || !title) {
+      if (based) free(based);
+      if (basec) free(basec);
       return RETURN_FAIL;
+   }
 
    char found  = 0, *whole = NULL;
    size_t lsep = strlen(sep);
    size_t len  = strlen(artist)+lsep+strlen(album)+lsep+strlen(title)+2;
    if ((whole = malloc(len))) {
       snprintf(whole, len-1, "%s%s%s%s%s", artist, sep, album, sep, title);
+      if (based) free(based);
+      if (basec) free(basec);
       if (!strcmp(needle, whole)) {
          found = 1;
          if (exact) *exact = 1;
@@ -356,18 +371,6 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
       free(whole);
       if (found) return RETURN_OK;
    }
-
-#if 0
-   if (_strupstr(artist, needle) ||
-       _strupstr(album, needle)  ||
-       _strupstr(title, needle))
-      return RETURN_OK;
-
-   if (_strupstr(needle, artist) ||
-       _strupstr(needle, album)  ||
-       _strupstr(needle, title))
-      return RETURN_OK;
-#endif
 
    return RETURN_FAIL;
 }
