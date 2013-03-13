@@ -1558,9 +1558,9 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
    if (reply->type == atoms[ATOM]) {
       if (c->targets) free(c->targets);
       if ((c->targets = get_targets(c, reply, &c->num_targets))) {
-            xcb_convert_selection(xcb, xcbw, c->sel,
-                  c->targets[0], atoms[XSEL_DATA], XCB_CURRENT_TIME);
-            OUT("Ask for: 0x%x", c->targets[0]);
+         xcb_convert_selection(xcb, xcbw, c->sel,
+               c->targets[0], atoms[XSEL_DATA], XCB_CURRENT_TIME);
+         OUT("Ask for: 0x%x", c->targets[0]);
          c->is_waiting   = c->num_targets+5;
          c->cycle_target = c->num_targets;
          OUT("%d valid targets for %s", c->num_targets, c->name);
