@@ -9,6 +9,7 @@ arch=('i686' 'x86_64')
 url='http://cloudef.eu'
 license=('WTFPL')
 depends=('mpd' 'dmenu-pango-imlib')
+optdepends=('dmenu')
 makedepends=('gcc')
 source=('lolimpd.c' 'lolimpdnu')
 
