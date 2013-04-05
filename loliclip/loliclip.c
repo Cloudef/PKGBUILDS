@@ -1803,7 +1803,7 @@ static int do_sync(const char *selection, int argc, char **argv) {
       if (buffer) free(buffer);
    } else {
       /* dont out data, if we have pipe open */
-      if (!isatty(fileno(stdin)) || PIPE_MODE) return 1;
+      if (PIPE_MODE || !isatty(fileno(stdin))) return 1;
       OUT("\4Get selection from %s", selection);
       if (!(c = get_clipboard(selection)))
          goto fail;
