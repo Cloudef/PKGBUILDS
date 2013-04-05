@@ -158,11 +158,13 @@ REGISTER_ARG(arg_clear);
 REGISTER_ARG(arg_query);
 REGISTER_ARG(arg_binary);
 REGISTER_ARG(arg_wait);
+REGISTER_ARG(arg_pipe);
 #undef REGISTER_ARG
 
 /* arguments are executed in order */
 static cliparg clipargs[] = {
    { 0, 'w', "wait",       0, arg_wait,      arg_wait,            "\tWait until our X selection is taken. (don't daemonize)" },
+   { 0, 'i', "pipe",       0, arg_pipe,      arg_pipe,            "\tAlways wait for input from pipe" },
    { 0, 'd', "daemon",     0, arg_daemon,    NULL,                "Run as daemon." },
    { 0, 'p', "primary",    0, arg_primary,   arg_primary_sync,    "Operate on PRIMARY." },
    { 0, 's', "secondary",  0, arg_secondary, arg_secondary_sync,  "Operate on SECONDARY." },
@@ -203,7 +205,10 @@ static int xcb_timeout_daemon = 5000;  /* in nanoseconds */
 static xcb_time_t xcb_timestamp = 0;
 
 /* wait mode? */
-char WAIT_MODE = 0;
+static char WAIT_MODE = 0;
+
+/* pipe mode? */
+static char PIPE_MODE = 0;
 
 /* output helpers */
 #define _D "\1-\2!\1-\5"
@@ -1650,7 +1655,7 @@ static char* get_data_as_argument(int argc, char **argv, size_t *len) {
    size_t size = 0, read; int i; *len = 0;
 
    /* 100% sure we are terminal */
-   if (!argc && isatty(fileno(stdin)))
+   if (!argc && isatty(fileno(stdin)) && !PIPE_MODE)
       return NULL;
 
    if (!argc) {
@@ -1798,7 +1803,7 @@ static int do_sync(const char *selection, int argc, char **argv) {
       if (buffer) free(buffer);
    } else {
       /* dont out data, if we have pipe open */
-      if (!isatty(fileno(stdin))) return 1;
+      if (!isatty(fileno(stdin)) || PIPE_MODE) return 1;
       OUT("\4Get selection from %s", selection);
       if (!(c = get_clipboard(selection)))
          goto fail;
@@ -1948,6 +1953,12 @@ FUNC_ARG(arg_wait) {
    return 1;
 }
 
+FUNC_ARG(arg_pipe) {
+   PIPE_MODE = 1;
+   OUT("PIPE MODE");
+   return 1;
+}
+
 FUNC_ARG(arg_binary) {
    xcb_atom_t *targets;
    char *buffer; size_t i, len = 0, tlen = 0;
@@ -2019,8 +2030,8 @@ fail:
 /* show usage */
 static int usage(char *name) {
    int o;
-   printf("usage: %s [--wait/-w] [-", basename(name));
-   for (o = 1; o != LENGTH(clipargs); ++o)
+   printf("usage: %s [--wait/-w] [--pipe/-i] [-", basename(name));
+   for (o = 2; o != LENGTH(clipargs); ++o)
       printf("%c", clipargs[o].arg);
    printf("]\n");
    for (o = 0; o != LENGTH(clipargs); ++o)
