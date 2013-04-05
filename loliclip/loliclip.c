@@ -390,7 +390,7 @@ static char* trim_whitespace(char *buffer, size_t len, size_t *nlen) {
    if (len<=trail+lead)
       return NULL;
 
-   *nlen = len-trail-lead+(hasnl?1:0)+1;
+   *nlen = len-trail-lead+(hasnl?1:0);
    if (!(nbuffer = malloc(*nlen+1)))
       return NULL;
    memcpy(nbuffer, buffer+lead, *nlen);
@@ -530,7 +530,7 @@ static char* get_clipboard_database_path(clipdata *c, char create) {
          strlen(clipfile)+1+
          strlen(ext)+1;
 
-   if (!(buffer = malloc(len)))
+   if (!(buffer = malloc(len+1)))
       goto out_of_memory;
 
    snprintf(buffer, len, "%s%s%s/%s/%s.%s",
@@ -629,7 +629,7 @@ static int restore_clipboard(void *calldata, clipdata *c,
    if (!cbuf) {
       if (!(cbuf = malloc(size+1)))
          return 0;
-      memset(cbuf, 0, size+1);
+      memset(cbuf, 0, size);
    }
 
    /* copy data */
@@ -658,8 +658,8 @@ static int ls_clipboard(clipdata *c, char *path, void *calldata, lscallback call
 
    if (USE_ZLIB) {
       ext = "dez";
-      len = strlen(path)+1+strlen(ext)+1;
-      if (!(zpath = malloc(len)))
+      len = strlen(path)+1+strlen(ext);
+      if (!(zpath = malloc(len+1)))
          goto out_of_memory;
       snprintf(zpath, len, "%s.%s", path, ext);
 
@@ -720,14 +720,14 @@ static void store_clip(clipdata *c) {
 
    ext = "tmp";
    len = strlen(path)+1+strlen(ext)+1;
-   if (!(tmp = malloc(len)))
+   if (!(tmp = malloc(len+1)))
       goto out_of_memory;
    snprintf(tmp, len, "%s.%s", path, ext);
 
    if (USE_ZLIB) {
       ext = "dez";
       len = strlen(path)+1+strlen(ext)+1;
-      if (!(zpath = malloc(len)))
+      if (!(zpath = malloc(len+1)))
          goto out_of_memory;
       snprintf(zpath, len, "%s.%s", path, ext);
    }
