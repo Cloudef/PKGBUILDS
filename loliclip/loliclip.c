@@ -1810,9 +1810,11 @@ static int do_sync(const char *selection, int argc, char **argv) {
 
       buffer = get_xsel(c->sel, atoms[UTF8_STRING], &len);
       if (!buffer) buffer = get_xsel(c->sel, atoms[STRING], &len);
-      if (buffer && len)
+      if (buffer && len) {
          for (i = 0; i != len; ++i)
             printf("%c", buffer[i]);
+         if (buffer[len-1] != '\n') puts("");
+      }
       if (buffer) free(buffer);
    }
    return 1;
