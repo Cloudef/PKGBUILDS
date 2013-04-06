@@ -396,8 +396,6 @@ static char* trim_whitespace(char *buffer, size_t len, size_t *nlen) {
    memcpy(nbuffer, buffer+lead, *nlen);
    if (hasnl) nbuffer[*nlen-1] = '\n';
    nbuffer[*nlen] = 0;
-   printf("BEFORE: %s\n", buffer);
-   printf("AFTER: %s\n", nbuffer);
    return nbuffer;
 }
 
