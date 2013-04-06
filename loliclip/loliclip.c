@@ -384,7 +384,7 @@ static char* trim_whitespace(char *buffer, size_t len, size_t *nlen) {
    for (; *s && isspace(*s); ++s) ++lead;
    if (!*s) return NULL;
 
-   for (s = buffer+len; len && (isspace(*s) || *s == '\n'); --s, --len)
+   for (s = buffer+len-1; len && (isspace(*s) || *s == '\n'); --s, --len)
       if (*s == '\n') hasnl = trail; ++trail;
 
    if (len<=trail+lead)
