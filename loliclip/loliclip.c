@@ -390,7 +390,7 @@ static char* trim_whitespace(char *buffer, size_t len, size_t *nlen) {
    if (len<=trail+lead)
       return NULL;
 
-   *nlen = len-trail-lead+(hasnl?1:0);
+   *nlen = len-trail-lead+(hasnl?1:0)+1;
    if (!(nbuffer = malloc(*nlen+1)))
       return NULL;
    memcpy(nbuffer, buffer+lead, *nlen);
@@ -658,7 +658,7 @@ static int ls_clipboard(clipdata *c, char *path, void *calldata, lscallback call
 
    if (USE_ZLIB) {
       ext = "dez";
-      len = strlen(path)+1+strlen(ext);
+      len = strlen(path)+1+strlen(ext)+1;
       if (!(zpath = malloc(len+1)))
          goto out_of_memory;
       snprintf(zpath, len, "%s.%s", path, ext);
