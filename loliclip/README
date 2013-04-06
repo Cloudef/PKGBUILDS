@@ -21,14 +21,14 @@ related to selection targets.
 
 MISC:
    You can set clipboard data similar to xsel/xclip
-   echo "asd" | loliclip -p # copy to primary
-   echo "asd" | loliclip -c # copy to clipboard
-   loliclip -p              # output selection from primary
-   loliclip -c              # output selection from clipboard
+   echo "asd" | loliclip -pi # copy to primary
+   echo "asd" | loliclip -ci # copy to clipboard
+   loliclip -p               # output selection from primary
+   loliclip -c               # output selection from clipboard
 
    Special selections are supported as well
-   loliclip -b image/png > image.png # get image from gimp
-   loliclip -b image/png < image.png # upload image to image/png
+   loliclip -b image/png > image.png  # get image from gimp
+   loliclip -bi image/png < image.png # upload image to image/png
 
 Those commands will leave loliclip process open until someone else takes ownership of the particular selection (ex. XA_CLIPBOARD).
 
