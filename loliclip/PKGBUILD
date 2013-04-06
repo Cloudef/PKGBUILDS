@@ -12,6 +12,7 @@ depends=('libxcb' 'zlib')
 optdepends=('dmenu')
 makedepends=('gcc')
 source=('loliclip.c' 'config.h' 'lolictrl')
+install=loliclip.install
 
 # Debug build?
 DEBUG=0
