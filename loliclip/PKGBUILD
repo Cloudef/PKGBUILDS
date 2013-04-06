@@ -3,7 +3,7 @@
 
 pkgname=loliclip
 pkgver=2.5
-pkgrel=6
+pkgrel=7
 pkgdesc='Lightweight clipboard manager for X'
 arch=('i686' 'x86_64')
 url='http://cloudef.eu'
