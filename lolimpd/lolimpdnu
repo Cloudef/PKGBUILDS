@@ -24,11 +24,6 @@ NOCACHE=0
    DMENU="dmenu -i -l 15"
 }
 
-# filter for index search
-filter() {
-   while read f; do echo "$f" | sed 's/\[/\\[/g;s/\]/\\]/g'; done
-}
-
 # lolis live here
 main() {
    local song=
@@ -58,10 +53,10 @@ main() {
    [[ $HAS_IMLIB_DMENU -eq 1 ]] && {
       # search for current song
       [[ -n "$filter" ]] && {
-         index=$(grep "$filter" "$CACHE" | grep -xn ".*\($("$LOLIMPD" | head -n1 | filter)\)" | cut -f1 -d: | head -n1)
+         index=$(grep "$filter" "$CACHE" | grep -Fon "$("$LOLIMPD" | head -n1)" | cut -f1 -d: | head -n1)
       }
       [[ -n "$filter" ]] || {
-         index=$(grep -xn ".*\($("$LOLIMPD" | head -n1 | filter)\)" "$CACHE" | cut -f1 -d: | head -n1)
+         index=$(grep -Fon "$("$LOLIMPD" | head -n1)" "$CACHE" | cut -f1 -d: | head -n1)
       }
       [[ -n "$index" ]] || index=1
 
