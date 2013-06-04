@@ -41,9 +41,9 @@ main() {
    [[ "$1" == "-g" ]] && { g="-g"; shift 1; }
    [[ "$1" == "-h" ]] && {
       echo "usage: lolimpdnu [cgh] <filter>"
-      echo "\t-c\tClear song list cache. Use this, if you add/remove songs from/to mpd."
-      echo "\t-g\tGenerate tumbnail cache for all songs. (Needs dmenu with imlib support)"
-      echo "\t-h\tShow this help."
+      echo -e "\t-c\tClear song list cache. Use this, if you add/remove songs from/to mpd."
+      echo -e "\t-g\tGenerate tumbnail cache for all songs. (Needs dmenu with imlib support)"
+      echo -e "\t-h\tShow this help."
       return;
    }
 
