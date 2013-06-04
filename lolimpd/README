@@ -1,1 +1,8 @@
 Dmenu client for MPD
+
+Heavily work in progress..
+
+TODO:
+- Sorting
+- Better dmenu matching
+
