@@ -15,6 +15,7 @@
 
 #define MPD_TIMEOUT 3000
 #define MUSIC_DIR "/mnt/東方/music"
+#define SEPERATOR " >> "
 
 #define _D "\1-\2!\1-\5"
 #define ERR_SNTX _D" \3%d \2[\4%s \5:: \4%s\2]\5:"
@@ -379,7 +380,7 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
 static void now_playing(void) {
    char *cover;
    struct mpd_song *song = mpd_run_current_song(mpd->connection);
-   queue_add_song(song, "│", 0);
+   queue_add_song(song, SEPERATOR, 0);
    if ((cover = get_cover_art(song))) {
       printf("%s\n", cover);
       free(cover);
@@ -407,7 +408,7 @@ static int update_queue(void) {
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         queue_add_song(mpd_entity_get_song(entity), "│", 1);
+         queue_add_song(mpd_entity_get_song(entity), SEPERATOR, 1);
       mpd_entity_free(entity);
    }
 
@@ -434,7 +435,7 @@ static struct mpd_song* queue_search_song(const char *needle) {
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         if (!exact && queue_match_song(mpd_entity_get_song(entity), needle, "│", &exact) == RETURN_OK) {
+         if (!exact && queue_match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
                if (song) mpd_song_free(song);
                song = mpd_song_dup(mpd_entity_get_song(entity));
             }
@@ -559,7 +560,7 @@ FUNC_OPT(opt_play) {
 
       OUT("play: %s", search);
       if ((song = queue_search_song(search))) {
-         queue_add_song(song, " - ", 0);
+         queue_add_song(song, SEPERATOR, 0);
          mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
          mpd_song_free(song);
       } else {
@@ -647,7 +648,7 @@ static void usage(char *name) {
    int o;
    printf("usage: %s [", basename(name));
    for (o = 0; opts[o].arg; ++o)
-      printf("%s%s", opts[o].arg, opts[o+1].arg?"│":"");
+      printf("%s%s", opts[o].arg, opts[o+1].arg?SEPERATOR:"");
    printf("]\n");
    exit(EXIT_FAILURE);
 }
