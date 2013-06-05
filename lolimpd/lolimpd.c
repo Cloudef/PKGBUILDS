@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 #include <limits.h>
 #include <libgen.h>
 #include <mpd/client.h>
@@ -16,6 +17,7 @@
 #define MPD_TIMEOUT 3000
 #define MUSIC_DIR "/mnt/東方/music"
 #define SEPERATOR " >> "
+#define ARG_WITH_COVER "--with-cover"
 
 #define _D "\1-\2!\1-\5"
 #define ERR_SNTX _D" \3%d \2[\4%s \5:: \4%s\2]\5:"
@@ -34,6 +36,16 @@
          mpd_connection_get_error(mpd->connection) != MPD_ERROR_SUCCESS)   \
       ERR("MPD error: (%d) %s", mpd_connection_get_error(mpd->connection), \
             mpd_connection_get_error_message(mpd->connection));
+
+/* files are not loaded, if playlist found from same directory */
+static const char *fileFormats[] = {
+   ".flac", ".tta", ".ogg", ".mp3", ".wav", NULL
+};
+
+/* playlist we want to load */
+static const char *playlistFormats[] = {
+   ".cue", ".m3u", ".pls", NULL
+};
 
 /* mpd server definition */
 typedef struct mpdserver {
@@ -95,13 +107,16 @@ typedef struct mpdopt {
 } mpdopt;
 
 #define REGISTER_OPT(x) static int x(int argc, char **argv)
+REGISTER_OPT(opt_add);
+REGISTER_OPT(opt_clear);
+REGISTER_OPT(opt_ls);
+REGISTER_OPT(opt_index);
 REGISTER_OPT(opt_play);
 REGISTER_OPT(opt_stop);
 REGISTER_OPT(opt_pause);
 REGISTER_OPT(opt_toggle);
 REGISTER_OPT(opt_next);
 REGISTER_OPT(opt_prev);
-REGISTER_OPT(opt_ls);
 REGISTER_OPT(opt_repeat);
 REGISTER_OPT(opt_random);
 REGISTER_OPT(opt_single);
@@ -110,13 +125,16 @@ REGISTER_OPT(opt_crossfade);
 #undef REGISTER_OPT
 
 static const mpdopt opts[] = {
+   { "add", 1, opt_add },
+   { "clear", 0, opt_clear },
+   { "ls", 0, opt_ls },
+   { "index", 0, opt_index },
    { "play", 0, opt_play },
    { "stop", 0, opt_stop },
    { "pause", 0, opt_pause },
    { "toggle", 0, opt_toggle },
    { "next", 0, opt_next },
    { "prev", 0, opt_prev},
-   { "ls", 0, opt_ls },
    { "repeat", 0, opt_repeat },
    { "random", 0, opt_random },
    { "single", 0, opt_single },
@@ -234,7 +252,7 @@ static char* fetch_cover(const char *dir) {
 /* get cover art for song */
 static char* get_cover_art(const struct mpd_song *song) {
    char *uric, *ret; const char *uri, *urid;
-   if (!(uri = mpd_song_get_uri(song)) || !((uric = strdup(uri))))
+   if (!song || !(uri = mpd_song_get_uri(song)) || !((uric = strdup(uri))))
       return NULL;
    urid = dirname(uric);
    ret = fetch_cover(urid);
@@ -243,7 +261,7 @@ static char* get_cover_art(const struct mpd_song *song) {
 }
 
 /* add song to queue */
-static int queue_add_song(const struct mpd_song *song, const char *sep, int printimg) {
+static int print_song(const struct mpd_song *song, const char *sep, int printimg) {
    if (!song) return RETURN_FAIL;
    char *basec = NULL, *based = NULL, *cover = NULL;
    static char *lalbum = NULL;
@@ -309,7 +327,7 @@ static int queue_add_song(const struct mpd_song *song, const char *sep, int prin
 }
 
 /* match song from queue */
-static int queue_match_song(const struct mpd_song *song, const char *needle, const char *sep, int *exact) {
+static int match_song(const struct mpd_song *song, const char *needle, const char *sep, int *exact) {
    if (exact) *exact = 0;
    if (!song) return RETURN_FAIL;
    char *basec = NULL, *based = NULL;
@@ -377,38 +395,29 @@ static int queue_match_song(const struct mpd_song *song, const char *needle, con
 }
 
 /* now playing */
-static void now_playing(void) {
+static void now_playing(int printimg) {
    char *cover;
    struct mpd_song *song = mpd_run_current_song(mpd->connection);
-   queue_add_song(song, SEPERATOR, 0);
-   if ((cover = get_cover_art(song))) {
+   if (!song) return;
+   print_song(song, SEPERATOR, 0);
+   if (printimg && (cover = get_cover_art(song))) {
       printf("%s\n", cover);
       free(cover);
    }
    mpd_song_free(song);
 }
 
-/* update queue */
-static int update_queue(void) {
+/* list queue */
+static int list_queue(int printimg) {
    struct mpd_entity *entity;
    assert(mpd && mpd->connection);
-
-#if 0
-   mpd_send_list_meta(mpd->connection, "/");
-   while ((entity = mpd_recv_entity(mpd->connection))) {
-      if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         queue_add_song(mpd_entity_get_song(entity));
-      mpd_entity_free(entity);
-   }
-   mpd_response_finish(mpd->connection);
-#endif
 
    if (!mpd_send_list_queue_meta(mpd->connection))
       goto fail;
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         queue_add_song(mpd_entity_get_song(entity), SEPERATOR, 1);
+         print_song(mpd_entity_get_song(entity), SEPERATOR, printimg);
       mpd_entity_free(entity);
    }
 
@@ -424,7 +433,7 @@ fail:
 }
 
 /* search queue */
-static struct mpd_song* queue_search_song(const char *needle) {
+static struct mpd_song* search_queue(const char *needle) {
    struct mpd_song *song = NULL;
    struct mpd_entity *entity;
    int exact = 0;
@@ -435,7 +444,7 @@ static struct mpd_song* queue_search_song(const char *needle) {
 
    while ((entity = mpd_recv_entity(mpd->connection))) {
       if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         if (!exact && queue_match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
+         if (!exact && match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
                if (song) mpd_song_free(song);
                song = mpd_song_dup(mpd_entity_get_song(entity));
             }
@@ -457,7 +466,7 @@ static void update_status(void) {
    assert(mpd && mpd->connection);
    if (mpd->status)    mpd_status_free(mpd->status);
    if (!(mpd->status = mpd_run_status(mpd->connection)))
-         MPDERR();
+      MPDERR();
 
    mpd->state.id        = mpd_status_get_update_id(mpd->status);
    mpd->state.volume    = mpd_status_get_volume(mpd->status);
@@ -537,7 +546,131 @@ connect_fail:
    return RETURN_FAIL;
 }
 
+enum {
+   ADD_MODE_SEARCH,
+   ADD_MODE_PLAYLIST,
+   ADD_MODE_FILE,
+};
+static void add_from(const char *path, int add_mode, int *found_playlist)
+{
+   DIR *dp;
+   struct dirent *ep;
+   char *sub_path;
+   const char *ext;
+   int sub_path_size, did_add_file = 0, contains_playlist = 0, i;
+
+   if ((dp = opendir(path))) {
+      /* crawl subdirectories and check if current directory contains playlist */
+      while ((ep = readdir(dp))) {
+         if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")) continue;
+         if (ep->d_type != DT_DIR && ep->d_type != DT_REG) continue;
+         sub_path_size = strlen(path)+1+strlen(ep->d_name)+1;
+         if (!(sub_path = malloc(sub_path_size+1))) continue;
+         snprintf(sub_path, sub_path_size, "%s/%s", path, ep->d_name);
+         add_from(sub_path, ADD_MODE_SEARCH, &contains_playlist);
+         free(sub_path);
+      }
+      closedir(dp);
+
+      /* add the files from directory */
+      if (!(dp = opendir(path))) return;
+      while ((ep = readdir(dp))) {
+         if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")) continue;
+         if (ep->d_type != DT_REG) continue;
+         sub_path_size = strlen(path)+1+strlen(ep->d_name)+1;
+         if (!(sub_path = malloc(sub_path_size+1))) continue;
+         snprintf(sub_path, sub_path_size, "%s/%s", path, ep->d_name);
+         add_from(sub_path, (contains_playlist?ADD_MODE_PLAYLIST:ADD_MODE_FILE), NULL);
+         free(sub_path);
+      }
+      closedir(dp);
+   } else {
+      /* something is wrong, if this doesn't pass */
+      if (strlen(path) < 1+strlen(MUSIC_DIR)) return;
+
+      /* try add as an playlist */
+      for (i = 0;
+            (add_mode == ADD_MODE_SEARCH || add_mode == ADD_MODE_PLAYLIST) &&
+            !did_add_file && playlistFormats[i]; ++i)
+      {
+         ext = playlistFormats[i];
+         if (strlen(path) < strlen(ext)) continue;
+         if (strcmp(path+strlen(path)-strlen(ext), ext)) continue;
+         if (found_playlist) *found_playlist = 1;
+
+         if (add_mode == ADD_MODE_PLAYLIST) {
+            if ((sub_path = strdup(path))) {
+               printf(">> adding playlist: %s\n", basename(sub_path));
+               free(sub_path);
+            }
+            if (!mpd_run_load(mpd->connection, path+1+strlen(MUSIC_DIR)))
+               MPDERR();
+         }
+         did_add_file = 1;
+      }
+
+      /* try add as an file */
+      for (i = 0; add_mode == ADD_MODE_FILE && !did_add_file && fileFormats[i]; ++i) {
+         ext = fileFormats[i];
+         if (strlen(path) < strlen(ext)) continue;
+         if (strcmp(path+strlen(path)-strlen(ext), ext)) continue;
+
+         if ((sub_path = strdup(path))) {
+            printf(">> adding file: %s\n", basename(sub_path));
+            free(sub_path);
+         }
+         if (!mpd_run_add(mpd->connection, path+1+strlen(MUSIC_DIR)))
+            MPDERR();
+         did_add_file = 1;
+      }
+   }
+}
+
 #define FUNC_OPT(x) static int x(int argc, char **argv)
+FUNC_OPT(opt_add) {
+   char path[PATH_MAX];
+
+   OUT("add");
+   if (!strcmp(argv[0], ".") || !strcmp(argv[0], "..")) {
+      snprintf(path, PATH_MAX-1, "%s", MUSIC_DIR);
+   } else {
+      snprintf(path, PATH_MAX-1, "%s/%s", MUSIC_DIR, argv[0]);
+   }
+
+   if (access(path, R_OK) != 0)
+      goto access_fail;
+
+   add_from(path, 0, NULL);
+   return EXIT_SUCCESS;
+
+access_fail:
+   ERR("Cannot access file/directory: %s", path);
+   goto fail;
+fail:
+   return EXIT_SUCCESS;
+}
+
+FUNC_OPT(opt_clear) {
+   OUT("clear");
+   if (!mpd_run_clear(mpd->connection))
+      MPDERR();
+   return EXIT_SUCCESS;
+}
+
+FUNC_OPT(opt_ls) {
+   OUT("ls");
+   list_queue((argc && !strcmp(argv[0], ARG_WITH_COVER))?1:0);
+   return EXIT_SUCCESS;
+}
+
+FUNC_OPT(opt_index) {
+   OUT("index");
+   struct mpd_song *song = mpd_run_current_song(mpd->connection);
+   printf("%u\n", (song?mpd_song_get_pos(song)+1:1));
+   if (song) mpd_song_free(song);
+   return EXIT_SUCCESS;
+}
+
 FUNC_OPT(opt_play) {
    struct mpd_song *song = NULL;
    size_t len = 0, i = 0;
@@ -559,8 +692,8 @@ FUNC_OPT(opt_play) {
       }
 
       OUT("play: %s", search);
-      if ((song = queue_search_song(search))) {
-         queue_add_song(song, SEPERATOR, 0);
+      if ((song = search_queue(search))) {
+         print_song(song, SEPERATOR, 0);
          mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
          mpd_song_free(song);
       } else {
@@ -606,12 +739,6 @@ FUNC_OPT(opt_prev) {
    return EXIT_SUCCESS;
 }
 
-FUNC_OPT(opt_ls) {
-   OUT("ls");
-   update_queue();
-   return EXIT_SUCCESS;
-}
-
 FUNC_OPT(opt_repeat) {
    OUT("repeat");
    mpd_send_repeat(mpd->connection, !argc?1:strtol(argv[0], NULL, 10));
@@ -648,26 +775,36 @@ static void usage(char *name) {
    int o;
    printf("usage: %s [", basename(name));
    for (o = 0; opts[o].arg; ++o)
-      printf("%s%s", opts[o].arg, opts[o+1].arg?SEPERATOR:"");
+      printf("%s%s", opts[o].arg, opts[o+1].arg?"|":"");
    printf("]\n");
+   printf("     - `%s "ARG_WITH_COVER"` to print path to cover art for playing song\n", basename(name));
+   printf("     - `%s ls "ARG_WITH_COVER"` to print paths to cover art as well\n", basename(name));
+   exit(EXIT_FAILURE);
+}
+
+static void usage2(char *name, const mpdopt *opt)
+{
+   printf("%s: %s takes %d argument(s)\n", basename(name), opt->arg, opt->argc);
    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv) {
    int o;
-   if (argc >= 2) {
+
+   if (argc >= 2 && strcmp(argv[1], ARG_WITH_COVER)) {
       for (o = 0; opts[o].arg && strcmp(argv[1], opts[o].arg); ++o);
-      if (!opts[o].arg || opts[o].argc > argc-2) usage(argv[0]);
+      if (!opts[o].arg) usage(argv[0]);
+      if (opts[o].argc > argc-2) usage2(argv[0], &opts[o]);
       OUT("%s: %d/%d", opts[o].arg, argc-2, opts[o].argc);
    }
 
    if (init_mpd() != RETURN_OK)
       goto fail;
 
-   if (argc >= 2) {
+   if (argc >= 2 && strcmp(argv[1], ARG_WITH_COVER)) {
       for (o = 0; opts[o].arg && strcmp(argv[1], opts[o].arg); ++o);
       if (opts[o].func) opts[o].func(argc-2, argv+2);
-   } else now_playing();
+   } else now_playing((argc>=2 && !strcmp(argv[1], ARG_WITH_COVER)));
 
    quit_mpd();
    return EXIT_SUCCESS;

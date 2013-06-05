@@ -47,16 +47,21 @@ main() {
    filter="$@"
 
    # generate cache, if one doesn't exist
-   [[ -f "$CACHE" ]] || "$LOLIMPD" ls > "$CACHE"
+   [[ $HAS_IMLIB_DMENU -eq 1 ]] && {
+     [[ -f "$CACHE" ]] || "$LOLIMPD" ls --with-cover > "$CACHE"
+   }
+   [[ $HAS_IMLIB_DMENU -eq 0 ]] && {
+     [[ -f "$CACHE" ]] || "$LOLIMPD" ls > "$CACHE"
+   }
 
    # imlib specific
    [[ $HAS_IMLIB_DMENU -eq 1 ]] && {
       # search for current song
       [[ -n "$filter" ]] && {
-         index=$(grep "$filter" "$CACHE" | grep -Fon "$("$LOLIMPD" | head -n1)" | cut -f1 -d: | head -n1)
+         index=$(grep "$filter" "$CACHE" | grep -Fon "$("$LOLIMPD")" | cut -f1 -d: | head -n1)
       }
       [[ -n "$filter" ]] || {
-         index=$(grep -Fon "$("$LOLIMPD" | head -n1)" "$CACHE" | cut -f1 -d: | head -n1)
+         index=$("$LOLIMPD" index)
       }
       [[ -n "$index" ]] || index=1
 
