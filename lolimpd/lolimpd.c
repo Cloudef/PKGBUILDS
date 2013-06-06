@@ -551,13 +551,38 @@ enum {
    ADD_MODE_PLAYLIST,
    ADD_MODE_FILE,
 };
-static void add_from(const char *path, int add_mode, int *found_playlist)
+
+int song_compare(const void *a, const void *b)
+{
+   int ret = INT_MAX;
+   struct mpd_song *sa = mpd_run_get_queue_song_id(mpd->connection, *(int*)a);
+   struct mpd_song *sb = mpd_run_get_queue_song_id(mpd->connection, *(int*)b);
+   if (sa && sb) {
+      const char *cta = mpd_song_get_tag(sa, MPD_TAG_TRACK, 0);
+      const char *ctb = mpd_song_get_tag(sb, MPD_TAG_TRACK, 0);
+      int ta = INT_MAX, tb = INT_MAX;
+      if (cta) sscanf(cta, "%d/%*", &ta);
+      if (ctb) sscanf(ctb, "%d/%*", &tb);
+      ret = ta - tb;
+   }
+   if (sa) mpd_song_free(sa);
+   if (sb) mpd_song_free(sb);
+   return ret;
+}
+
+static void add_from(const char *path, int add_mode, int *found_playlist, int *found_song_id)
 {
    DIR *dp;
    struct dirent *ep;
    char *sub_path;
    const char *ext;
-   int sub_path_size, did_add_file = 0, contains_playlist = 0, i;
+   struct mpd_song *song;
+   unsigned int start_pos, small_pos;
+   int sub_path_size, did_add_file = 0, contains_playlist = 0, i, id = -1;
+   int *song_list = NULL, *old_song_list, song_list_count = 0, song_list_size = 0;
+   const int song_list_alloc = 32;
+
+   if (found_song_id) *found_song_id = -1;
 
    if ((dp = opendir(path))) {
       /* crawl subdirectories and check if current directory contains playlist */
@@ -567,7 +592,7 @@ static void add_from(const char *path, int add_mode, int *found_playlist)
          sub_path_size = strlen(path)+1+strlen(ep->d_name)+1;
          if (!(sub_path = malloc(sub_path_size+1))) continue;
          snprintf(sub_path, sub_path_size, "%s/%s", path, ep->d_name);
-         add_from(sub_path, ADD_MODE_SEARCH, &contains_playlist);
+         add_from(sub_path, ADD_MODE_SEARCH, &contains_playlist, NULL);
          free(sub_path);
       }
       closedir(dp);
@@ -580,10 +605,50 @@ static void add_from(const char *path, int add_mode, int *found_playlist)
          sub_path_size = strlen(path)+1+strlen(ep->d_name)+1;
          if (!(sub_path = malloc(sub_path_size+1))) continue;
          snprintf(sub_path, sub_path_size, "%s/%s", path, ep->d_name);
-         add_from(sub_path, (contains_playlist?ADD_MODE_PLAYLIST:ADD_MODE_FILE), NULL);
+         add_from(sub_path, (contains_playlist?ADD_MODE_PLAYLIST:ADD_MODE_FILE), NULL, &id);
          free(sub_path);
+         if (id == -1) continue;
+
+         /* add song to sorter array */
+         if (song_list_size <= song_list_count+1) {
+            old_song_list = song_list;
+            song_list_size += song_list_alloc;
+            if (!(song_list = malloc(song_list_size * sizeof(int)))) {
+               song_list = old_song_list;
+               continue;
+            }
+            if (old_song_list) memcpy(song_list, old_song_list, sizeof((song_list_size - song_list_alloc) * sizeof(int)));
+         }
+         song_list[song_list_count++] = id;
       }
       closedir(dp);
+
+      /* sort songs */
+      if (song_list && (old_song_list = malloc(song_list_count * sizeof(int)))) {
+         memcpy(old_song_list, song_list, song_list_count * sizeof(int));
+         qsort(song_list, song_list_count, sizeof(int), song_compare);
+
+         /* get song with smallest position */
+         start_pos = UINT_MAX;
+         for (i = 0; i != song_list_count; ++i) {
+            song = mpd_run_get_queue_song_id(mpd->connection, song_list[i]);
+            if (!song) {
+               MPDERR();
+               continue;
+            }
+            small_pos = mpd_song_get_pos(song);
+            if (small_pos < start_pos) start_pos = small_pos;
+            mpd_song_free(song);
+         }
+
+         /* do the moving */
+         for (i = 0; start_pos != UINT_MAX && i != song_list_count; ++i) {
+            if (!mpd_run_move_id(mpd->connection, song_list[i], start_pos+i))
+               MPDERR();
+         }
+         free(old_song_list);
+      }
+      if (song_list) free(song_list);
    } else {
       /* something is wrong, if this doesn't pass */
       if (strlen(path) < 1+strlen(MUSIC_DIR)) return;
@@ -619,8 +684,9 @@ static void add_from(const char *path, int add_mode, int *found_playlist)
             printf(">> adding file: %s\n", basename(sub_path));
             free(sub_path);
          }
-         if (!mpd_run_add(mpd->connection, path+1+strlen(MUSIC_DIR)))
+         if ((id = mpd_run_add_id(mpd->connection, path+1+strlen(MUSIC_DIR))) == -1)
             MPDERR();
+         if (found_song_id) *found_song_id = id;
          did_add_file = 1;
       }
    }
@@ -640,7 +706,10 @@ FUNC_OPT(opt_add) {
    if (access(path, R_OK) != 0)
       goto access_fail;
 
-   add_from(path, 0, NULL);
+   if (!mpd_run_update(mpd->connection, (!strcmp(path, MUSIC_DIR)?NULL:argv[0])))
+      MPDERR();
+
+   add_from(path, 0, NULL, NULL);
    return EXIT_SUCCESS;
 
 access_fail:
