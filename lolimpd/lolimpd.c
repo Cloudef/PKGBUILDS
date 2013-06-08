@@ -706,7 +706,7 @@ FUNC_OPT(opt_add) {
    if (access(path, R_OK) != 0)
       goto access_fail;
 
-   if (!mpd_run_update(mpd->connection, (!strcmp(path, MUSIC_DIR)?NULL:argv[0])))
+   if (!mpd_run_rescan(mpd->connection, (!strcmp(path, MUSIC_DIR)?NULL:argv[0])))
       MPDERR();
 
    add_from(path, 0, NULL, NULL);
