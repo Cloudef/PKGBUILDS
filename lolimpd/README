@@ -39,7 +39,7 @@ Incase no coverart or selection index store support is not needed, set the HAS_I
 
 Usage:
 
-lolimpdnu <filter>   - Lists songs using dmenu. Optional song filter can be specified
-lolimpdnu -c         - Clear lolimpdnu cache file if used. Use when the playlist has changed
-lolimpdnu -g         - Generate thumbnails for all album cover arts (needs dmenu-pango-imlib)
+lolimpdnu <filter>   - lists songs using dmenu. optional song filter can be specified
+lolimpdnu -c         - clear lolimpdnu cache file if used. use when the playlist has changed
+lolimpdnu -g         - generate thumbnails for all album cover arts (needs dmenu-pango-imlib)
 
