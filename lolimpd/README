@@ -1,4 +1,44 @@
 Dmenu client for MPD
 
-Heavily work in progress..
+Provides lolimpd CLI program that can act as simple mpc replacement.
+It's main function is to be backend for the dmenu frontend however.
+
+Before compiling lolimpd, you should change MUSIC_DIR (line 17) to be same as the database location in your mpd configuration.
+It's possible to leave it empty, in case 'lolimpd add' and local cover art support is not needed.
+
+Usage:
+
+lolimpd             - print current playing song (--with-cover argument to include cover art)
+
+lolimpd add <path>  - add <path> inside the MUSIC_DIR defined in lolimpc.c
+                      tries to detect and load playlists/songs automatically recursively, if directory specified.
+                      sorts files that were not playlist automatically.
+
+lolimpd ls          - list all songs in playlist (--with-cover argument to include cover art)
+lolimpd clear       - clear playlist
+lolimpd play        - start playing current song
+lolimpd play <song> - tries to search the song using dmenu like matching and start playing it.
+lolimpd stop        - stop playback
+lolimpd pause       - pause playback
+lolimpd toggle      - pause/play toggle
+lolimpd next/prev   - next/prev song in queue
+lolimpd repeat      - toggle playlist repeat
+lolimpd single      - toggle single play
+lolimpd consume     - toggle consume mode
+lolimpd crossfade   - similar to mpc crossfade
+
+
+lolimpdnu is the lolimpd frontend using dmenu.
+
+By default lolimpdnu is designed to be used with single big playlist containing all songs.
+Incase no big playlists are being used or multiple playlists are swapped the NOCACHE parameter at line 16 should be set to true.
+This disables lolimpdnu song cache for faster startup.
+
+For cover art and selection index store support dmenu-pango-imlib should be used.
+Incase no coverart or selection index store support is not needed, set the HAS_IMLIB_DMENU to false at line 8.
+
+Usage:
+
+lolimpdnu <filter>   - Lists songs using dmenu. Optional song filter can be specified.
+lolimpdnu -g         - Generate thumbnails for all album cover arts (needs dmenu-pango-imlib)
 
