@@ -34,3 +34,4 @@ Those commands will leave loliclip process open until someone else takes ownersh
 
 TODO:
    Remove clip by index from history from CLI
+   Dynamic specialclip buffers
