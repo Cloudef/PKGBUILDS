@@ -1565,7 +1565,8 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
       return;
    }
 
-   if (reply->type == atoms[ATOM]) {
+   if (reply->type == atoms[ATOM] ||
+       reply->type == atoms[TARGETS]) {
       if (c->targets) free(c->targets);
       if ((c->targets = get_targets(c, reply, &c->num_targets))) {
          xcb_convert_selection(xcb, xcbw, c->sel,
@@ -1584,11 +1585,16 @@ static void handle_notify(xcb_selection_notify_event_t *e) {
    } else if (reply->type != atoms[INCR]) { /* NON INCR */
       OUT("NON INCR [0x%x]", reply->type);
       string = fetch_xsel(e->requestor, e->property, e->target, &len);
-      if ((s = we_handle_special_selection(e->target))) {
-         handle_special_copy(c, s, string, len); /* string is not copied */
-         string = NULL; /* don't free */
+      if (e->target != atoms[UTF8_STRING] ||
+          e->target == atoms[UTF8_STRING] && !isbinary(string, len)) {
+         if ((s = we_handle_special_selection(e->target))) {
+            handle_special_copy(c, s, string, len); /* string is not copied */
+            string = NULL; /* don't free */
+         } else {
+            handle_copy(c, string, len); /* string is copied */
+         }
       } else {
-         handle_copy(c, string, len); /* string is copied */
+         OUT("GOT BINARY WHEN UTF8 EXPECTED!");
       }
       ask_for_next_selection(c);
       if (c->is_waiting) --c->is_waiting;
