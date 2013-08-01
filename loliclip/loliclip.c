@@ -1159,15 +1159,19 @@ static void* fetch_xsel(xcb_window_t win, xcb_atom_t property, xcb_atom_t type, 
       return NULL;
    }
 
-   if (!(string = malloc(xsel->value_len+1))) {
+   OUT("LEN/FORMAT: %d, %d", xsel->value_len, xsel->format/8);
+   uint8_t format = xsel->format;
+   if (format < 8) format = 8;
+   size_t rlen = xsel->value_len * xsel->format/8;
+   if (!(string = malloc(rlen+1))) {
       free(xsel);
       return NULL;
    }
 
-   memcpy(string, data, xsel->value_len);
-   memset(string+xsel->value_len, 0, 1);
+   memcpy(string, data, rlen);
+   memset(string+rlen, 0, 1);
 
-   *len = xsel->value_len; free(xsel);
+   *len = rlen; free(xsel);
    xcb_delete_property(xcb, win, property);
    return string;
 }
