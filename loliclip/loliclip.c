@@ -1453,7 +1453,7 @@ static void handle_special_copy(clipdata *c, specialclip *s, void *buffer, size_
       return;
    }
 
-   OUT("Got special data from %s", s->name);
+   OUT("Got special data from %s [%zu]", s->name, len);
    if (!set_special_selection_data(s, buffer, len)) {
       free(buffer);
       return;
