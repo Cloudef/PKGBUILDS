@@ -451,7 +451,8 @@ static int set_clipboard_data(clipdata *c, void *buffer, size_t len) {
       OUT("Binary data! [%zu]", len);
       if (!(copy = malloc(len+1)))
          goto fail;
-      memcpy(copy, buffer, len); copy[len] = 0;
+      memcpy(copy, buffer, len);
+      memset(copy+len, 0, 1);
       if (c->data) free(c->data);
       c->data = copy; c->size = len;
       c->cflags = CLIP_SKIP_HISTORY;
@@ -986,7 +987,7 @@ static void sync_clip(clipdata *c) {
      return;
 
    set_clipboard_own(s);
-   set_clipboard_data(s, (char*)c->data, c->size);
+   set_clipboard_data(s, c->data, c->size);
    OUT("\2Synced from %s to %s", c->name, c->sync);
 }
 
