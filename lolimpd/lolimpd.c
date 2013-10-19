@@ -694,6 +694,7 @@ static void add_from(const char *path, int add_mode, int *found_playlist, int *f
 
 #define FUNC_OPT(x) static int x(int argc, char **argv)
 FUNC_OPT(opt_add) {
+   unsigned int id;
    char path[PATH_MAX];
 
    OUT("add");
@@ -706,8 +707,33 @@ FUNC_OPT(opt_add) {
    if (access(path, R_OK) != 0)
       goto access_fail;
 
-   if (!mpd_run_rescan(mpd->connection, (!strcmp(path, MUSIC_DIR)?NULL:argv[0])))
+   if (!(id = mpd_run_update(mpd->connection, (!strcmp(path, MUSIC_DIR)?NULL:argv[0])))) {
       MPDERR();
+      goto fail;
+   }
+
+   while (1) {
+      unsigned int current_id;
+      struct mpd_status *status;
+      enum mpd_idle idle = mpd_run_idle_mask(mpd->connection, MPD_IDLE_UPDATE);
+      if (idle == 0) {
+         MPDERR();
+         goto fail;
+      }
+
+      /* determine the current "update id" */
+      if (!(status = mpd_run_status(mpd->connection))) {
+         MPDERR();
+         goto fail;
+      }
+
+      current_id = mpd_status_get_update_id(status);
+      mpd_status_free(status);
+
+      /* is our last queued update finished now? */
+      if (current_id == 0 || current_id > id || (id > 1 << 30 && id < 1000)) /* wraparound */
+         break;
+   }
 
    add_from(path, 0, NULL, NULL);
    return EXIT_SUCCESS;
