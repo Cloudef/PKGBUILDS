@@ -1,7 +1,7 @@
 # Maintainer: Jari Vetoniemi <mailroxas _at_ gmail >
 _gitname=dmenu-pango-imlib
 pkgname=dmenu-pango-imlib-git
-pkgver=4.5.1.6.g5e34b3f
+pkgver=4.5.2
 pkgrel=1
 pkgdesc="Dynamic X menu - with pango and imlib support"
 url="https://github.com/Cloudef/dmenu-pango-imlib"
