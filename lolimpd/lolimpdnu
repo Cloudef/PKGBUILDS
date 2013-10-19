@@ -21,7 +21,7 @@ NOCACHE=0
    DMENU="$LOLIMPDNU_DMENU"
 }
 [[ -n "$DMENU" ]] || {
-   DMENU="dmenu -i -l 15"
+   DMENU="dmenu -i -l 5"
 }
 
 # lolis live here
