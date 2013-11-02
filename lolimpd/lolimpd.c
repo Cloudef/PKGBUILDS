@@ -15,6 +15,7 @@
  * will cleanup when I feel like it. */
 
 #define MPD_TIMEOUT 3000
+#define MPD_OUTPUT_BUFFER 16384
 #define MUSIC_DIR "/mnt/東方/music"
 #define SEPERATOR " >> "
 #define ARG_WITH_COVER "--with-cover"
@@ -409,56 +410,55 @@ static void now_playing(int printimg) {
 
 /* list queue */
 static int list_queue(int printimg) {
+   unsigned int pos, end, mid;
    struct mpd_entity *entity;
    assert(mpd && mpd->connection);
 
-   if (!mpd_send_list_queue_meta(mpd->connection))
-      goto fail;
-
-   while ((entity = mpd_recv_entity(mpd->connection))) {
-      if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         print_song(mpd_entity_get_song(entity), SEPERATOR, printimg);
-      mpd_entity_free(entity);
+   for (mid = pos = 0, end = MPD_OUTPUT_BUFFER;
+         mpd_send_list_queue_range_meta(mpd->connection, pos, end);
+         pos = end, end *= 2) {
+      while ((entity = mpd_recv_entity(mpd->connection))) {
+         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
+            print_song(mpd_entity_get_song(entity), SEPERATOR, printimg);
+         mid = mpd_song_get_id(mpd_entity_get_song(entity));
+         mpd_entity_free(entity);
+      }
+      if (!mpd_response_finish(mpd->connection))
+         MPDERR();
+      if (end > mid) break;
    }
 
    mpd->queue.version = mpd_status_get_queue_version(mpd->status);
-   if (!mpd_response_finish(mpd->connection))
-      goto fail;
-
    return RETURN_OK;
-
-fail:
-   MPDERR();
-   return RETURN_FAIL;
 }
 
 /* search queue */
 static struct mpd_song* search_queue(const char *needle) {
+   int exact = 0;
+   unsigned int pos, end, mid;
    struct mpd_song *song = NULL;
    struct mpd_entity *entity;
-   int exact = 0;
    assert(mpd && mpd->connection);
 
-   if (!mpd_send_list_queue_meta(mpd->connection))
-      goto fail;
-
-   while ((entity = mpd_recv_entity(mpd->connection))) {
-      if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
-         if (!exact && match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
-               if (song) mpd_song_free(song);
-               song = mpd_song_dup(mpd_entity_get_song(entity));
-            }
-      mpd_entity_free(entity);
+   for (mid = pos = 0, end = MPD_OUTPUT_BUFFER; !song &&
+         mpd_send_list_queue_range_meta(mpd->connection, pos, end);
+         pos = end, end *= 2) {
+      while (!song && (entity = mpd_recv_entity(mpd->connection))) {
+         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
+            if (!exact && match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
+                  if (song) mpd_song_free(song);
+                  song = mpd_song_dup(mpd_entity_get_song(entity));
+               }
+         mid = mpd_song_get_id(mpd_entity_get_song(entity));
+         mpd_entity_free(entity);
+      }
+      if (!mpd_response_finish(mpd->connection))
+         MPDERR();
+      if (end > mid) break;
    }
 
    mpd->queue.version = mpd_status_get_queue_version(mpd->status);
-   if (!mpd_response_finish(mpd->connection))
-         goto fail;
-
    return song;
-fail:
-   MPDERR();
-   return NULL;
 }
 
 /* update status */
@@ -789,7 +789,8 @@ FUNC_OPT(opt_play) {
       OUT("play: %s", search);
       if ((song = search_queue(search))) {
          print_song(song, SEPERATOR, 0);
-         mpd_send_play_id(mpd->connection, mpd_song_get_id(song));
+         if (!mpd_send_play_id(mpd->connection, mpd_song_get_id(song)))
+            MPDERR();
          mpd_song_free(song);
       } else {
          printf("no match for: %s\n", search);
