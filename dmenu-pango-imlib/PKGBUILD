@@ -1,4 +1,6 @@
-# Maintainer: Jari Vetoniemi <mailroxas _at_ gmail >
+# Maintainer: Jari Vetoniemi <mailroxas _at_ gmail _dot_ com>
+# dmenu with pango and imlib support
+
 _gitname=dmenu-pango-imlib
 pkgname=dmenu-pango-imlib-git
 pkgver=4.5.3
