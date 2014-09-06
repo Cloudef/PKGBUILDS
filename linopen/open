@@ -84,11 +84,11 @@ launch() {
 
    # test against whole mime type
    [[ -n "$program" ]] || program="$(getconfig | \
-      grep "^$(file -b --mime-type "$1"):" | head -1 | cut -d : -f 2)"
+      grep "^$(file -L -b --mime-type "$1"):" | head -1 | cut -d : -f 2)"
 
    # test against video/, text/ (first part of mime type)
    [[ -n "$program" ]] || program="$(getconfig | \
-      grep "^$(file -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
+      grep "^$(file -L -b --mime-type "$1" | sed 's/\(.*\)\/.*/\1:/')" | \
       head -1 | cut -d : -f 2)"
 
    # test against regexp
