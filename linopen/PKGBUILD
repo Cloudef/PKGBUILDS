@@ -28,7 +28,8 @@ package() {
       ln -s "/usr/bin/open" "$pkgdir/usr/bin/xdg-open"
    fi
 }
-md5sums=('f5025488979d05fe2d923ef37b1a6a47'
+
+md5sums=('684be20f439b54368044f96e3efe3ef1'
          '37eef2ae627bb018b0638d6fefde7780')
 
 # vim: set ts=8 sw=3 tw=0 :
