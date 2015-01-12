@@ -40,7 +40,7 @@
 
 /* files are not loaded, if playlist found from same directory */
 static const char *fileFormats[] = {
-   ".flac", ".tta", ".ogg", ".mp3", ".wav", NULL
+   ".flac", ".tta", ".ogg", ".mp3", ".m4a", ".wav", NULL
 };
 
 /* playlist we want to load */
