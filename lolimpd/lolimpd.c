@@ -617,15 +617,17 @@ static void add_from(const char *path, int add_mode, int *found_playlist, int *f
                song_list = old_song_list;
                continue;
             }
-            if (old_song_list) memcpy(song_list, old_song_list, sizeof((song_list_size - song_list_alloc) * sizeof(int)));
+            if (old_song_list) memcpy(song_list, old_song_list, (song_list_size - song_list_alloc) * sizeof(int));
+            else memset(song_list, 0, song_list_size * sizeof(int));
+            free(old_song_list);
+            old_song_list = NULL;
          }
          song_list[song_list_count++] = id;
       }
       closedir(dp);
 
       /* sort songs */
-      if (song_list && (old_song_list = malloc(song_list_count * sizeof(int)))) {
-         memcpy(old_song_list, song_list, song_list_count * sizeof(int));
+      if (song_list) {
          qsort(song_list, song_list_count, sizeof(int), song_compare);
 
          /* get song with smallest position */
@@ -646,7 +648,6 @@ static void add_from(const char *path, int add_mode, int *found_playlist, int *f
             if (!mpd_run_move_id(mpd->connection, song_list[i], start_pos+i))
                MPDERR();
          }
-         free(old_song_list);
       }
       if (song_list) free(song_list);
    } else {
