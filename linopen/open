@@ -21,11 +21,14 @@ getconfig() {
 # match regexp
 # $1 = filename
 match_regexp() {
+   open_with=''
    getconfig | grep "^?" | while read cf; do
       exp="$(echo "$cf" | sed "s/?'\(.*\)':.*/\1/")"
       [[ -n "$(echo "$@" | grep "$exp")" ]] && {
-         echo "$cf" | sed "s/?'.*':\(.*\)/\1/"
+         open_with="$(echo "$cf" | sed "s/?'.*':\(.*\)/\1/")";
       }
+      # exit the loop once a match is encountered
+      [[ ! "${open_with}" = '' ]] && echo "${open_with}" && exit 0
    done
 }
 
