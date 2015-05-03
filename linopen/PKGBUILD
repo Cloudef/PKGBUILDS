@@ -2,8 +2,8 @@
 # Intelligent and suckless replacement for xdg-open
 
 pkgname=linopen
-pkgver=1.5
-pkgrel=3
+pkgver=1.6
+pkgrel=1
 pkgdesc='Intelligent and suckless replacement for xdg-open'
 arch=('any')
 url='http://cloudef.eu'
@@ -29,7 +29,7 @@ package() {
    fi
 }
 
-md5sums=('684be20f439b54368044f96e3efe3ef1'
+md5sums=('15a6b084258db3a5d15eda3e65295445'
          '37eef2ae627bb018b0638d6fefde7780')
 
 # vim: set ts=8 sw=3 tw=0 :
