@@ -665,10 +665,7 @@ static void add_from(const char *path, int add_mode, int *found_playlist, int *f
          if (found_playlist) *found_playlist = 1;
 
          if (add_mode == ADD_MODE_PLAYLIST) {
-            if ((sub_path = strdup(path))) {
-               printf(">> adding playlist: %s\n", basename(sub_path));
-               free(sub_path);
-            }
+            printf(">> adding playlist: %s\n", path+1+strlen(MUSIC_DIR));
             if (!mpd_run_load(mpd->connection, path+1+strlen(MUSIC_DIR)))
                MPDERR();
          }
@@ -681,10 +678,7 @@ static void add_from(const char *path, int add_mode, int *found_playlist, int *f
          if (strlen(path) < strlen(ext)) continue;
          if (strcmp(path+strlen(path)-strlen(ext), ext)) continue;
 
-         if ((sub_path = strdup(path))) {
-            printf(">> adding file: %s\n", basename(sub_path));
-            free(sub_path);
-         }
+         printf(">> adding file: %s\n", path+1+strlen(MUSIC_DIR));
          if ((id = mpd_run_add_id(mpd->connection, path+1+strlen(MUSIC_DIR))) == -1)
             MPDERR();
          if (found_song_id) *found_song_id = id;
