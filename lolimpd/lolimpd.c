@@ -418,15 +418,17 @@ static int list_queue(int printimg) {
          mpd_send_list_queue_range_meta(mpd->connection, pos, end);
          pos = end, end *= 2) {
       while ((entity = mpd_recv_entity(mpd->connection))) {
-         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
+         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG) {
             print_song(mpd_entity_get_song(entity), SEPERATOR, printimg);
-         mid = mpd_song_get_id(mpd_entity_get_song(entity));
+            mid = mpd_song_get_id(mpd_entity_get_song(entity));
+         }
          mpd_entity_free(entity);
       }
-      if (!mpd_response_finish(mpd->connection))
-         MPDERR();
       if (end > mid) break;
    }
+
+   if (!mpd_response_finish(mpd->connection))
+      MPDERR();
 
    mpd->queue.version = mpd_status_get_queue_version(mpd->status);
    return RETURN_OK;
@@ -444,18 +446,20 @@ static struct mpd_song* search_queue(const char *needle) {
          mpd_send_list_queue_range_meta(mpd->connection, pos, end);
          pos = end, end *= 2) {
       while (!song && (entity = mpd_recv_entity(mpd->connection))) {
-         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG)
+         if (mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG) {
             if (!exact && match_song(mpd_entity_get_song(entity), needle, SEPERATOR, &exact) == RETURN_OK) {
-                  if (song) mpd_song_free(song);
-                  song = mpd_song_dup(mpd_entity_get_song(entity));
-               }
-         mid = mpd_song_get_id(mpd_entity_get_song(entity));
+               if (song) mpd_song_free(song);
+               song = mpd_song_dup(mpd_entity_get_song(entity));
+            }
+            mid = mpd_song_get_id(mpd_entity_get_song(entity));
+         }
          mpd_entity_free(entity);
       }
-      if (!mpd_response_finish(mpd->connection))
-         MPDERR();
       if (end > mid) break;
    }
+
+   if (!mpd_response_finish(mpd->connection))
+      MPDERR();
 
    mpd->queue.version = mpd_status_get_queue_version(mpd->status);
    return song;
