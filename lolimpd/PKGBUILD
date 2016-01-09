@@ -2,7 +2,7 @@
 # Dmenu client for MPD
 
 pkgname=lolimpd
-pkgver=1.8
+pkgver=1.9
 pkgrel=1
 pkgdesc='Dmenu client for MPD'
 arch=('i686' 'x86_64')
@@ -22,7 +22,7 @@ package() {
    install -Dm775 "$srcdir/lolimpdnu" "${pkgdir}/usr/bin/lolimpdnu"
    install -Dm755 "$srcdir/lolimpd" "${pkgdir}/usr/bin/lolimpd"
 }
-md5sums=('047bab7929814efbaaef1c7a931e537a'
+md5sums=('e1ed314d5692ea73d5ec6ae456de9cb3'
          'd505ebd4ec6316eca6621f7e0893a30a')
 
 # vim: set ts=8 sw=3 tw=0 :
