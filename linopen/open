@@ -125,13 +125,13 @@ launch() {
          "$(get_term)" -e "$program" "$1" &
       else
          # open in current terminal
-         "$program" "$1"
+         $program "$1"
       fi
    else
       # echo program is exception here
       [[ "$program" == "echo" ]] && { echo "$1"; } || {
          # open in background (redirects everything to /dev/null)
-         "$program" "$1" &> /dev/null &
+         $program "$1" &> /dev/null &
       }
    fi
 }
